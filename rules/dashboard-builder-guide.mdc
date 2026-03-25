@@ -451,12 +451,12 @@ The `preview_query` and `explore_metric` MCP tools return query results through 
 
 | Channel | Rows | Format | Purpose |
 |---------|------|--------|---------|
-| `content[0].text` | ≤ 30 | JSON | LLM context (always present) |
+| `content[0].text` | ≤ 500 | JSON | LLM context (always present) |
 | `structuredContent` | ≤ 1,000 | JSON table | UI clients (Claude Desktop, Claude.ai) — zero tokens |
 | `resource_link` | ≤ 10,000 | CSV | Full data on demand via `skipper://query-results/{id}` |
 
-- Results with ≤ 30 rows are returned fully inline (no `resource_link`).
-- Results with > 30 rows are truncated in `content.text` with a `resource_link` to the full dataset.
+- Results with ≤ 500 rows are returned fully inline (no `resource_link`).
+- Results with > 500 rows are truncated in `content.text` with a `resource_link` to the full dataset.
 - The `resource_link` uses **lazy evaluation**: only query parameters are cached at tool-call time; the full query executes on the first `resources/read` request.
 - Cache backend: Keyv with `mcp-qr` namespace (in-memory by default, `CACHE_URI` for Redis/Valkey).
 - Cache TTL: 1 hour.
