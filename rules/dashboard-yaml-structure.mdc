@@ -1,0 +1,430 @@
+---
+description: Dashboard YAML top-level structure, sections, tabs, and grid layout
+globs: dashboards/**/*.yaml
+alwaysApply: false
+---
+
+# Dashboard YAML Structure
+
+Dashboards are defined as YAML files in `dashboards/<root>/`. Each root has a `+layout.yaml` for root metadata and one or more `NN-name.yaml` dashboard files. Dashboards can also be **directory-based** — a `NN-name/` directory with `_tab.yaml` (preferred) or `_dashboard.yaml` (deprecated, validator emits warning) and tab files.
+
+## Canonical hierarchy
+
+`root -> dashboard -> tab -> [sections -> widgets]`
+
+## Authoring modes (strict)
+
+- **Flat mode**: one tab file contains everything (`title`, `datasources`, `sections`, etc.).
+- **Directory mode**: strict split by responsibility:
+  - dashboard `_tab.yaml` = meta only (id/title/description/icon/ai/appearance/freshness)
+  - tab-directory `_tab.yaml` = tab meta (id/title/icon/filters)
+  - `_shared/*.yaml` = shared datasources/mappings/filters
+  - `NN-*.yaml` = tab-content files with `sections: [...]` (and optional file-local `datasources`)
+- Do not mix these semantics: in directory mode, `_tab.yaml` must not contain `datasources` or `sections`.
+
+## Top-level fields
+
+```yaml
+id: my_dashboard           # Required. Unique identifier (snake_case)
+title: My Dashboard        # Required. Display title
+icon: BarChart3            # Optional. Lucide icon name
+description: Description   # Optional. Shown in sidebar
+
+ai:                        # Optional. AI assistant config
+  roles:                     # Optional. Audience roles for this dashboard
+    preferred: buyer         # Primary role (key from _context.yaml ai.roles)
+    extra: [owner, financier] # Additional roles
+  dataset:
+    name: Dataset Name
+    description: What data is in this dashboard
+    language: en             # Optional. Default AI response language (en | ru)
+    date_column: date        # Optional. Primary date column for profiling/expand
+    metrics: {}              # Optional. Named metrics with formulas
+    dimensions: []           # Optional. Dimension column names
+    profiling:               # Optional. Data profiling config
+      enabled: true
+    business:                # Optional. Business context
+      rules: []
+  welcome: "Ask about data"  # Optional. Welcome message (English)
+  welcome_ru: "Спросите"     # Optional. Welcome message (Russian)
+  examples:                  # Optional. Example questions (English)
+    - "Total spend?"
+  examples_ru:               # Optional. Example questions (Russian)
+    - "Общие расходы?"
+
+mappings: {}               # Optional. Value mapping dictionaries (see dashboard-mappings rule)
+datasources: {}            # Required. Named datasources (see dashboard-datasources rule)
+filters: []                # Optional. Dashboard-level filters (see dashboard-filters rule)
+freshness: ...             # Optional. Data freshness config (see dashboard-datasources rule)
+tabs: []                   # Optional. Tabbed layout
+sections: []               # Required. Array of sections with widgets
+```
+
+## Sections
+
+Sections group widgets. Each section renders a 12-column grid.
+
+```yaml
+sections:
+  - id: overview                      # Required. Unique within dashboard
+    title: Overview                   # Optional. Shows section header with collapse
+    description: Section description  # Optional
+    layout: vertical                  # Optional. vertical (default) or horizontal
+    columns: 2                        # Optional. For horizontal layout
+    gap: 4                            # Optional. Gap between widgets in px
+    collapsed: false                  # Optional. Start collapsed
+    shareable: true                   # Optional. Show share link button (default: true when title is set)
+    filters: []                       # Optional. Section-level filters
+    widgets: []                       # Required. Array of widgets
+    ai_hint: "..."                    # Optional. AI context hint (string or string[])
+```
+
+### Horizontal layout
+
+Use `layout: horizontal` with `columns: N` to place widgets side by side in equal-width columns:
+
+```yaml
+- id: side-by-side
+  title: Side by Side Charts
+  layout: horizontal
+  columns: 2
+  widgets:
+    - id: chart-left
+      type: chart
+      # ...
+    - id: chart-right
+      type: chart
+      # ...
+```
+
+## Widget base fields (shared by all widget types)
+
+```yaml
+- id: my_widget            # Required. Unique within section
+  type: rich_table         # Required. One of: rich_table, markdown, chart
+  col_span: 12             # Optional. Grid columns (1-12, default 12)
+  row_span: 1              # Optional. Grid rows
+  filters:                 # Optional. Control which dashboard/section filters apply
+    include: [date_range]  # Only these filters
+    exclude: [media_source] # All except these
+  inline_filters: []       # Optional. Widget-scoped filter definitions
+  shareable: true          # Optional. Show share link button (default: true when widget has a title)
+  ai_hint: "..."           # Optional. AI context hint (string or string[])
+```
+
+## Tabs
+
+Tabs allow splitting a dashboard into tabbed views. Each tab has its own sections and optional filters:
+
+```yaml
+tabs:
+  - id: overview
+    title: Overview
+    filters: []            # Optional. Tab-level filters
+    sections: []           # Sections within this tab
+  - id: details
+    title: Details
+    sections: []
+```
+
+When `tabs` is present, top-level `sections` still exist (rendered above tabs).
+
+## Root layout (+layout.yaml)
+
+```yaml
+name: Product                           # Required. Root display name
+icon: TrendingUp                        # Optional. Lucide icon
+description: Product dashboards         # Optional
+order: 1                                # Optional. Sort order in sidebar
+
+settings:
+  default_dashboard: 01-marketing       # Optional. Default dashboard to open
+
+links:                                  # Optional. External links in sidebar
+  - title: Tableau
+    url: https://example.com
+    icon: /icons/tableau.png            # Optional
+    external: true                      # Optional
+```
+
+## Root-level shared definitions
+
+A root can have a `_shared/` directory (next to `+layout.yaml`) with datasources, filters, and mappings inherited by **all dashboards** in that root:
+
+```text
+dashboards/
+  <root>/
+    +layout.yaml                         # UI metadata (unchanged)
+    _shared/                             # Root-level shared definitions
+      _datasources.yaml                  # Shared datasources for all dashboards
+      _filters.yaml                      # Shared filters for all dashboards
+      _mappings.yaml                     # Shared mappings for all dashboards
+    01-dashboard-a/                      # Inherits root _shared/
+    02-dashboard-b.yaml                  # Inherits root _shared/
+```
+
+### Merge hierarchy (3 tiers)
+
+```text
+Root _shared/         (base layer)
+  ↓
+Dashboard _shared/    (override / extend)
+  ↓
+Tab-level             (extend with projections only)
+```
+
+- **Datasources & mappings**: extend — root is base, dashboard wins on key conflict
+- **Filters**: override — if dashboard defines ANY filters (inline or via `_shared/_filters.yaml`), root filters are completely replaced; otherwise root filters are inherited
+
+All three files are optional. If `_shared/` does not exist at root level, nothing is inherited.
+
+## Global AI context (`_context.yaml`)
+
+A `_context.yaml` file can be defined inside each root (`dashboards/<root>/_context.yaml`) and contributes root-scoped AI assistant behaviour.
+When multiple roots are configured, context is loaded from all roots in configured order.
+
+When authoring visual widgets, align with the shared A7S Skipper design system:
+
+- Prefer named palettes `default`, `ocean`, `sunset` for chart series.
+- Prefer design-system tokens and semantic roles over ad-hoc hex colors.
+- Keep status colors semantic; do not reuse them as arbitrary chart palette replacements.
+- If MCP is available, inspect `skipper://design-system` and `skipper://design-system/palettes`.
+
+RBAC v2 notes for dashboard structure:
+
+- Dashboard paths are the canonical RBAC resource namespace in A7S Skipper.
+- Access is granted through org-level grants, not through YAML-local role declarations or team globs.
+- Keep root/dashboard/tab IDs stable once shared, because renaming paths changes the resource names grants match against.
+
+```yaml
+ai:
+  roles:                        # Audience role definitions (referenced by dashboards)
+    buyer:
+      title: "User Acquisition Manager"
+      focus: ["CPI", "ROAS", "spend efficiency"]
+      instructions: "Focus on acquisition costs and budget optimization."
+    owner:
+      title: "Business Owner / CEO"
+      focus: ["revenue", "profit", "growth"]
+      instructions: "High-level overview, strategic metrics."
+      email: "owner@company.com"                # Optional. Contact shown in header Help popover
+      slack_url: "https://yourworkspace.slack.com/..."  # Optional. Contact link in header Help popover
+
+  style:                        # Response style bullets injected into AI system prompt
+    - "Answer like an analyst: direct, specific numbers, bold key figures."
+    - 'Use explicit dates (e.g. "2024-03-01"), not "today".'
+
+  rules:                        # Generic rule categories (any key allowed)
+    business:
+      hint: "Core business definitions and constraints"
+      items:
+        - "ROAS below 3.0 is considered poor"
+    marketing:
+      hint: "Acquisition and advertising metrics"
+      items:
+        - "CPI = spend / installs"
+      glossary:
+        CPI: "Cost Per Install — total ad spend divided by number of installs"
+        ROAS: "Return On Ad Spend — revenue divided by ad spend"
+    data:
+      hint: "Data quality, freshness, granularity"
+      items:
+        - "Today's data may be incomplete — ad spend lags by 3-4 hours."
+    dates:
+      hint: "Date ranges and period handling"
+      items:
+        - "Default analysis period is last 30 days."
+```
+
+### Roles
+
+Role definitions have:
+
+- `title` (optional) — human-readable role name
+- `focus` (optional) — array of key metrics/areas this role cares about
+- `instructions` (optional) — tone and focus guidance for the AI
+
+Dashboards reference roles by key via `ai.roles.preferred` and `ai.roles.extra`. The AI renders an `<audience>` section with primary and secondary roles, adjusting focus and tone accordingly.
+
+### Rules
+
+Each rule category has:
+
+- `hint` (optional) — context for the AI about what this category covers
+- `items` — array of rule strings
+- `glossary` (optional) — `Record<string, string>` of term definitions; rendered as `<glossary><term name="...">...</term></glossary>` inside the category
+
+Category keys are arbitrary — add any domain-specific categories you need (e.g. `financial`, `product`, `compliance`).
+
+### Merge with per-dashboard config
+
+- `style` — replaces hardcoded defaults entirely when present
+- `roles` — definitions are global; dashboards select which roles apply
+- `rules` — all categories are rendered as `<rules category="...">` in the system prompt
+- Per-dashboard `ai.dataset.business.rules` are added as a separate `category="dashboard"` block
+
+If the file is missing or empty, built-in style defaults are used and no rules/roles are injected.
+
+### Root owner contacts (navigation metadata)
+
+You can optionally define navigation roots and owner contacts in each root `_context.yaml`:
+
+```yaml
+navigation:
+  roots:
+    - id: product
+      name: Product
+      icon: LayoutDashboard
+      folders: [samples, platform]
+      owner:
+        name: "Jane Owner"
+        team: "Product Analytics"
+        email: "jane@company.com"
+        slack_url: "https://yourworkspace.slack.com/team/..."
+```
+
+- `owner` is optional.
+- When present, owner info is shown in the dashboard header Help popover together with changelog links.
+- `owner.team` is optional and shown in the Help popover when provided.
+- `slack_url` or `slackUrl` are both accepted in navigation owner object.
+
+### Canonical dashboard URLs
+
+- Dashboard URL: `/dashboards/<root>/<dashboard>`
+- Tab URL: `/dashboards/<root>/<dashboard>/<tab>`
+- `/dashboards/<root>/<dashboard>` redirects to default or first tab.
+- Any other non-canonical dashboard URL pattern returns `404`.
+- `root` is derived from configured dashboard roots order (`--root`/`--roots` or `A7S_ROOTS_DIR`).
+
+## Root product changelog (`_changelog.yaml`)
+
+Each root can have a separate non-technical product changelog:
+
+- Root path: `dashboards/<root>/_changelog.yaml`
+
+```yaml
+entries:
+  - date: "2026-03-05"
+    title: "New KPI cards"
+    summary: "Added simplified KPI cards for business users."
+```
+
+- Use product/business language, not engineering internals.
+- This changelog is shown in the header Help popover.
+- Technical changelog remains on `/docs/changelog`.
+
+### MCP root resources
+
+- `skipper://roots` — list of configured roots.
+- `skipper://roots/<root>/changelog` — root product changelog.
+- `skipper://query-results/{id}` — ephemeral full query result as CSV (1-hour TTL, lazy-evaluated).
+- `update_root_changelog` MCP tool updates `dashboards/<root>/_changelog.yaml`.
+
+### Multi-root input
+
+**Singular flags** (direct root, repeatable):
+`--root`, `--workspace`, `--board`
+Example: `--root dashboards/product --root dashboards/revenue`
+
+**Plural flags** (parent dir, auto-scan subdirectories):
+`--roots`, `--workspaces`, `--boards`
+Example: `--roots ./dashboards` scans `product/`, `revenue/`, etc.
+
+**Env var** (colon-separated):
+
+- `A7S_ROOTS_DIR` — paths with smart resolution (YAML at top level = direct root, otherwise auto-scan children)
+
+Roots order defines root order in sidebar/navigation.
+
+## Directory-based dashboards
+
+A dashboard can be a directory instead of a single file. The loader auto-detects the format:
+
+| Entry                  | Mode                                     |
+|------------------------|------------------------------------------|
+| `NN-name.yaml` (file)  | Flat - single file, current behavior     |
+| `NN-name/` (directory) | Directory - assembled from files inside  |
+
+### Directory structure
+
+```text
+NN-name/
+  _tab.yaml                # Dashboard meta (id, title, description, icon, ai, appearance, freshness)
+  # _dashboard.yaml        # Deprecated meta alias (validator emits deprecation warning)
+  _shared/                 # Optional shared definitions
+    _datasources.yaml      # Shared datasources (extend)
+    _mappings.yaml         # Shared mappings (extend)
+    _filters.yaml          # Replaces dashboard-level filters entirely
+  00-overview.yaml         # Simple tab (title, sections)
+  10-revenue/              # Tab directory (optional)
+    _tab.yaml              # Tab meta (id/title/icon/filters)
+    00-kpis.yaml           # Tab-content file (must contain sections: [...])
+    10-charts.yaml         # Tab-content file (must contain sections: [...])
+  20-settings.yaml         # Simple tab
+```
+
+### Naming rules
+
+- `NN-` prefix determines order (step of 10 for insertion room)
+- `_` prefix = meta/config, never content
+- `+layout.yaml` = root-level only, not inside dashboard dirs
+- Slug derived by stripping numeric prefix: `10-revenue` → `revenue`
+- URL segments for `root`, `dashboard`, and `tab` must be kebab-case: `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+
+### `_shared/` merge semantics
+
+- `_datasources.yaml` and `_mappings.yaml`: **extend** — shared is base, tab-content inline can extend/override on key conflict
+- `_filters.yaml`: **override** — replaces dashboard-level filters entirely
+
+### Tab-level datasource extension
+
+Tabs can extend existing datasources by adding projections:
+
+```yaml
+# In a tab-content file (NN-*.yaml), not in _tab.yaml
+datasources:
+  orders_main:               # existing datasource name
+    projections:
+      revenue_by_month:
+        sql: |
+          SELECT ... FROM {{source:orders_main}}
+```
+
+### Strict tab-content contract
+
+- Standalone section files (`id + widgets` at top level) are not supported.
+- Any non-meta tab content file must be a tab file with top-level `sections: [...]`.
+- In tab directories, `_tab.yaml` is tab meta; sibling `NN-*.yaml` files are tab-content fragments and must each contain `sections`.
+- In tab directories, `_tab.yaml` cannot contain `datasources` or `sections`.
+- `_dashboard.yaml` is deprecated and triggers a warning; migrate to `_tab.yaml` + `_shared/_datasources.yaml` + `_shared/_filters.yaml`.
+
+### CLI: split a flat dashboard
+
+```bash
+bun run bin/cli.mjs --split-dashboard path/to/dashboard.yaml
+```
+
+## AI Hints (`ai_hint`)
+
+Optional field available at 6 levels: datasource, projection, projection column, section, widget, and widget column (rich_table). Provides operational context for the AI assistant — not displayed in UI, only injected into the AI system prompt.
+
+Accepts a string or an array of strings:
+
+```yaml
+ai_hint: "Pre-aggregated by day"
+
+ai_hint:
+  - "Pre-aggregated by day"
+  - "Contains PII in user_email"
+```
+
+Use `ai_hint` for advice on _how to use_ the data (vs. `description` which says _what it is_).
+
+Column-level `description` acts as `ai_hint` fallback — when a rich_table column has `description` but no explicit `ai_hint`, the description text is used as the AI hint. Write `description` for what the data _is_; write `ai_hint` for how to _use_ it.
+
+## Grid system
+
+- Default grid: 12 columns
+- `col_span: 6` = half width, `col_span: 12` = full width
+- Values above 12 (e.g. `col_span: 15`) are allowed for wide tables with horizontal scroll
+- `row_span` controls height in grid rows

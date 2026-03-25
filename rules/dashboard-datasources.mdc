@@ -1,0 +1,572 @@
+---
+description: Data sources, projections, SQL templates, and filter placeholders
+globs: dashboards/**/*.yaml
+alwaysApply: false
+---
+
+# Data Sources & Projections
+
+Data sources define how data flows from ClickHouse into the local DuckDB for widgets.
+
+## Data source definition
+
+```yaml
+datasources:
+  total_by_ad:                          # Key used by widgets as datasource reference
+    source: default                     # Optional. Datasource registry key (default: "default")
+    sql: |                              # Required. ClickHouse SQL query
+      SELECT install_date, media_source, costs, revenue_net
+      FROM marts.marketing_creatives
+      WHERE ${filters.date_range('toDate(install_date)')}
+    projections: {}                     # Optional. Named sub-queries on this source
+    default_projection: daily_costs     # Optional. Default projection for widgets
+    ai_hint: "..."                      # Optional. AI context hint (string or string[])
+```
+
+## SQL filter placeholders
+
+Use `${filters.<filter_id>}` or `${filters.<filter_id>('column_expr')}` in SQL:
+
+```sql
+-- Simple: uses the filter's `column` field from filter definition
+WHERE ${filters.date_range}
+
+-- With explicit column expression (when DB column differs from filter column)
+WHERE ${filters.date_range('toDate(install_date)')}
+
+-- Multiple filters
+WHERE ${filters.date_range('toDate(install_date)')}
+  AND ${filters.media_source('media_source')}
+```
+
+The runtime replaces these with actual SQL conditions based on the current filter values.
+When a filter value is empty/null, the default replacement is `1=1` (no filtering).
+
+### Filter accessors
+
+| Syntax | When set | When empty/null |
+|---|---|---|
+| `${filters.id('col')}` | `col IN ('v')` (no AND) | `1=1` |
+| `${filters.id('col').if_set}` | `AND col IN ('v')` | `` (empty string) |
+| `${filters.id('col').or_true}` | `col IN ('v')` | `1=1` |
+| `${filters.id.value}` | `'v'` (SQL-quoted) | `'NULL'` |
+| `${filters.id.values}` | `['a', 'b']` | `[]` |
+| `${filters.id.sql}` | `col IN ('v')` (bare condition) | `1=1` |
+| `${filters.id.start}` | `'2024-01-01'` (date_range only) | `NULL` |
+| `${filters.id.end}` | `'2024-01-31'` (date_range only) | `NULL` |
+| `${filters.id.days}` | `30` (date_range only) | `NULL` |
+
+**Default** (`${filters.id}`): user writes `AND` manually. Use with `WHERE 1=1 AND ${filters.id}`.
+
+**`.if_set`**: includes `AND` automatically — use **without** manual `AND`. Best for optional/cascading filters:
+
+```sql
+-- Cascading filter options: only apply filters that are set
+SELECT DISTINCT language_level AS value, language_level AS label
+FROM {{source:content_list}}
+WHERE 1=1
+  ${filters.platform('platform').if_set}
+  ${filters.native_language('native_language').if_set}
+```
+
+### Auto filters
+
+| Syntax | Description |
+|---|---|
+| `${filters.auto}` | All non-empty filters combined with AND |
+| `${filters.auto.except('a,b')}` | All except listed filter IDs |
+| `${filters.auto.only('a,b')}` | Only listed filter IDs |
+
+```sql
+-- Apply all filters automatically
+WHERE 1=1 AND ${filters.auto}
+
+-- All filters except granularity (used for GROUP BY, not WHERE)
+WHERE 1=1 AND ${filters.auto.except('granularity')}
+```
+
+Filter placeholders work in base source SQL (ClickHouse), projection SQL (DuckDB), and view datasource SQL (DuckDB).
+
+## Projections
+
+Projections are sub-queries that run on data already loaded into DuckDB. They reference the parent source via `{{source:key}}`:
+
+```yaml
+datasources:
+  total_by_ad:
+    sql: |
+      SELECT install_date, media_source, costs
+      FROM marts.marketing_creatives
+      WHERE ${filters.date_range('toDate(install_date)')}
+    projections:
+      daily_costs_by_source:
+        description: Daily costs aggregated by media source  # Optional
+        ai_hint: "Best for time-series trend analysis"       # Optional. AI hint
+        sql: |
+          SELECT
+            CAST(install_date AS DATE) as date,
+            media_source,
+            SUM(costs) as costs
+          FROM {{source:total_by_ad}}
+          GROUP BY 1, 2
+          ORDER BY 1 DESC, 3 DESC
+        columns:                        # Optional. Column metadata for AI and filters
+          date: { type: date, description: Date of install }
+          media_source: { type: string, description: "Media source", mapping: media_sources }
+          costs: { type: decimal, description: Total spend, unit: USD }
+```
+
+### Projection column definitions
+
+```yaml
+columns:
+  column_name:
+    type: string | decimal | integer | timestamp | boolean | date
+    description: Human-readable description
+    unit: USD                           # Optional. Unit of measure
+    mapping: mapping_name               # Optional. Reference to dashboard mappings
+    values: [ios, android, web]         # Optional. Known values
+    pii: true                           # Optional. Marks as personally identifiable
+    ai_hint: "..."                      # Optional. AI context hint (string or string[])
+```
+
+## View datasources
+
+View datasources run entirely in DuckDB — they JOIN multiple base sources that are already loaded. No remote fetch is needed.
+
+```yaml
+datasources:
+  daily_combined:
+    type: view
+    sql: |
+      WITH ad_daily AS (
+        SELECT CAST(install_date AS DATE) AS date, SUM(costs) AS ad_costs
+        FROM {{source:total_by_ad}}
+        GROUP BY 1
+      ),
+      upsale_daily AS (
+        SELECT day AS date, SUM(revenue_net) AS upsale_revenue
+        FROM {{source:upsales_by_day}}
+        GROUP BY 1
+      )
+      SELECT
+        COALESCE(a.date, u.date) AS date,
+        COALESCE(a.ad_costs, 0) AS ad_costs,
+        COALESCE(u.upsale_revenue, 0) AS upsale_revenue
+      FROM ad_daily a
+      FULL OUTER JOIN upsale_daily u ON a.date = u.date
+```
+
+### How it works
+
+1. Dependencies are auto-inferred from `{{source:*}}` refs in SQL
+2. All dependency base sources are loaded first (ClickHouse → Parquet → DuckDB)
+3. A DuckDB `VIEW` is created with the interpolated SQL — no materialization
+4. When any dependency starts re-loading (filter change), widgets on the view show a shimmer
+5. When dependencies finish, the view is re-created (debounced) and widgets re-query automatically
+
+### Rules
+
+- `type: view` is required to distinguish from regular (ClickHouse) sources
+- `sql` uses DuckDB syntax (not ClickHouse)
+- `source` field is ignored
+- `{{source:*}}` refs must point to regular base sources only. **View-to-view dependencies are forbidden.**
+- `${filters.*}` is supported for DuckDB-side filtering
+- View datasources can have their own `projections` (same as regular sources)
+- Widgets reference a view source the same way as any other datasource: `datasource: daily_combined`
+
+### Recommended naming for rich_table system views
+
+For projection-first table presets, prefer explicit stable names over autogenerated inline keys:
+
+- `<table_id>__default_view` — default startup projection
+- `<table_id>__view_<preset_id>` — system preset projections
+
+This naming keeps YAML readable and makes policy-oriented review/debugging easier.
+
+Inline preset SQL can reference projections directly via `{{source:<projection_key>}}` or use `{{source:__default_view}}` to reference the widget's own datasource (even if it's a projection).
+
+## Widget datasource reference
+
+- **rich_table** and **chart** widgets reference a data source by key:
+  ```yaml
+  - id: my_table
+    type: rich_table
+    datasource: total_by_ad           # Key from datasources
+  ```
+
+- A projection is referenced as `projection_name` (resolved from the base source):
+  ```yaml
+  - id: my_chart
+    type: chart
+    datasource: daily_costs_by_source  # Projection key
+  ```
+
+- **rich_table**, **chart**, and **markdown** widgets support inline SQL:
+  ```yaml
+  - id: my_summary
+    type: markdown
+    datasource:
+      sql: |
+        SELECT SUM(costs) AS total_costs
+        FROM {{source:total_by_ad}}
+  ```
+
+## Inline widget datasources
+
+All widget types support an inline `datasource: { sql }` object instead of a string key. The loader auto-registers it as a `type: view` datasource.
+
+```yaml
+- id: revenue-chart
+  type: chart
+  datasource:
+    sql: |
+      SELECT date, SUM(revenue) as revenue
+      FROM {{source:orders}}
+      GROUP BY date
+```
+
+### How it works
+
+1. The loader extracts inline `{ sql }` from the widget
+2. A view datasource is created in `dashboard.datasources` with key `{widget.id}__view`
+3. The widget's `datasource` is replaced with the generated key
+4. The view follows the standard view pipeline (DuckDB VIEW, cascade store, filter invalidation)
+
+### Rules
+
+- Only `sql` is accepted in the inline object — no `type`, `source`, or `projections` (Zod `.strict()` rejects extra fields)
+- Type is always forced to `view` by the loader; it cannot be overridden
+- SQL uses DuckDB syntax with `{{source:key}}` refs to other datasources
+- `${filters.*}` is supported for DuckDB-side filtering
+- Inline views without `{{source:*}}` deps are valid (pure DuckDB SQL)
+- Hash invalidation works automatically — inline SQL changes trigger cache clear
+
+## Data flow
+
+1. Dashboard loads -> base source SQL sent to ClickHouse via `/api/export` -> Parquet returned
+2. Parquet loaded into DuckDB as `source_{dashboardId}_{key}`
+3. Projections execute in DuckDB against the materialized base table
+4. Widgets query DuckDB locally (never remote)
+
+## Directory-based dashboards: shared datasources
+
+In directory-based dashboards, datasources can be defined in `_shared/_datasources.yaml`:
+
+```yaml
+# _shared/_datasources.yaml — flat dict, merged into dashboard datasources
+orders_main:
+  sql: |
+    SELECT * FROM marts.orders
+    WHERE ${filters.date_range('toDate(created_at)')}
+```
+
+Merge rule: dashboard `_shared/_datasources.yaml` is base; tab-content files can extend/override keys (or add projections).
+
+Tabs can extend existing datasources by adding projections (in tab-content files):
+
+```yaml
+datasources:
+  orders_main:
+    projections:
+      revenue_by_month:
+        sql: |
+          SELECT ... FROM {{source:orders_main}} GROUP BY month
+```
+
+## Dashboard-level shared datasources
+
+A dashboard can define shared datasources in `_shared/_datasources.yaml` (next to `+layout.yaml`). These are inherited by **all tabs** in that dashboard:
+
+```yaml
+# dashboards/<root>/<dashboard>/_shared/_datasources.yaml — inherited by all tabs
+total_by_ad_remote:
+  sql: |
+    SELECT install_date, media_source, costs, revenue_net
+    FROM marts.marketing_creatives
+    WHERE ${filters.date_range('toDate(install_date)')}
+```
+
+### Merge hierarchy
+
+```
+Dashboard _shared/_datasources.yaml        (base)
+  + Tab _shared/_datasources.yaml          (extend, tab wins on key conflict)
+  + Tab-content inline datasources            (extend, tab-content wins on key conflict)
+  + Tab-level projections                  (extend with projections only)
+```
+
+Tabs can extend dashboard-level datasources with projections via tab-level `datasources`:
+
+```yaml
+# In a tab file (e.g. 00-main.yaml)
+datasources:
+  total_by_ad_remote:          # dashboard-level datasource
+    projections:
+      daily_costs_by_source:   # tab adds projections
+        sql: |
+          SELECT media_source, SUM(costs) as costs
+          FROM {{source:total_by_ad_remote}}
+          GROUP BY 1
+```
+
+## Rules
+
+- Widgets must NOT make remote calls. All data comes from local DuckDB.
+- Use `{{source:key}}` in projection/markdown SQL to reference the DuckDB table.
+- Use `${filters.id}` in base source SQL for ClickHouse-side filtering.
+- Projections run in DuckDB, so use DuckDB SQL syntax (not ClickHouse).
+- Base source SQL uses ClickHouse syntax.
+- Datasource and skill access is derived from grant-based RBAC on the owning dashboard path; do not model access as team-glob logic in new guidance.
+
+## Skill datasources (type: skill)
+
+Skill datasources fetch data from external APIs using SQL dot-notation. Two modes:
+
+### READ skills (existing)
+
+```yaml
+fb_campaigns:
+  type: skill
+  sql: |
+    SELECT id, name, status FROM fb.act_123.getCampaigns
+    WHERE "time_range.since" = ${filters.date_range.start}
+    LIMIT 100
+  cache_ttl: 300  # Optional, seconds
+```
+
+### WRITE skills (mutations)
+
+Write skills use UPDATE/INSERT SQL with optional CTE guard rails:
+
+```yaml
+pause_campaign:
+  type: skill
+  sql: |
+    WITH current AS (
+      SELECT id, status FROM fb.{id}.getCampaign
+    ),
+    error__invalid_state AS (
+      SELECT id FROM current WHERE status IN ('ACTIVE', 'PAUSED')
+    ),
+    discard__already_paused AS (
+      SELECT id FROM current WHERE status = 'PAUSED'
+    )
+    UPDATE fb.{id}.updateCampaign
+    SET status = 'PAUSED'
+```
+
+### Write skill fields
+
+- `input` — optional user input fields collected before execution:
+
+```yaml
+input:
+  - name: new_budget
+    type: currency       # currency | number | string
+    label: New Daily Budget
+    default: "{daily_budget}"   # Template resolved from row data
+```
+
+### Post-actions
+
+Declarative hooks that run after a successful write skill execution:
+
+```yaml
+update_campaign_budget:
+  type: skill
+  sql: |
+    UPDATE fb.{account_id}.updateCampaign
+    SET daily_budget = {new_budget}
+    WHERE campaign_id = {id}
+  post_actions:
+    - invalidate: fb_campaigns
+    - sql: UPDATE {{source:fb_campaigns}} SET daily_budget = {new_budget} WHERE id = {id}
+```
+
+| Type | Where | What |
+|---|---|---|
+| `invalidate: <key>` | Server + client | Clears server skill cache; marks source `skipCache` for next fetch |
+| `sql: <stmt>` | Client only | Runs UPDATE/INSERT on local DuckDB; `{{source:xxx}}` → table, `{param}` → write params |
+
+**Flow:** `sql` post-actions execute instantly on client DuckDB → `bumpDatasourceHash` triggers widget re-render → `reExecuteDependentViews` refreshes all dependent views → `invalidate` marks server cache stale for eventual consistency.
+
+### CTE verdict convention
+
+CTE names with prefixes determine server-side validation behavior:
+
+| Prefix | Trigger | Verdict |
+|---|---|---|
+| `error__<name>` | Returns **empty** | ERROR (blocks write) |
+| `warn__<name>` | Returns **rows** | WARN (write proceeds) |
+| `confirm__<name>` | Returns **rows** | CONFIRM (requires re-send with `confirmed: true`) |
+| `discard__<name>` | Returns **rows** | DISCARD (no-op) |
+
+CTEs without prefix are data-fetching helpers (not verdicts).
+
+## Data freshness
+
+The freshness system tracks data age for each datasource and shows visual indicators (color, pulse, age label) in the dashboard header.
+
+### Dashboard-level freshness
+
+```yaml
+# Full config — enable with custom thresholds
+freshness:
+  enabled: true               # Optional. Default: true
+  thresholds:
+    fresh: "5m"               # Duration string: Ns, Nm, Nh, Nd
+    stale: "30m"
+    critical: "2h"
+  sources:                    # Optional. Per-source overrides
+    orders_main:
+      watermark_column: updated_at
+      thresholds:
+        fresh: "10m"
+        stale: "1h"
+
+# Shorthand — disable freshness indicators, keep only the reload button
+freshness: false
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `true` | When `false`, freshness indicators are hidden; only a reload button is shown |
+| `thresholds.fresh` | `5m` | Data younger than this is "fresh" (green) |
+| `thresholds.stale` | `30m` | Data older than this is "stale" (orange, pulsing) |
+| `thresholds.critical` | `2h` | Data older than this is "critical" (red, animated) |
+| `sources.<key>` | — | Per-source overrides (watermark column, thresholds) |
+
+Setting `freshness: false` is equivalent to `freshness: { enabled: false }`. The reload button remains visible so users can still manually refresh all data.
+
+### Per-datasource freshness
+
+```yaml
+datasources:
+  orders_main:
+    sql: |
+      SELECT * FROM marts.orders WHERE ${filters.date_range('toDate(created_at)')}
+    freshness:
+      watermark_column: inserted_at       # Column to extract max timestamp from
+      sql: "SELECT max(inserted_at) ..."  # Optional. Custom freshness SQL
+      thresholds:
+        fresh: "30m"
+        stale: "2h"
+        critical: "12h"
+```
+
+Threshold resolution cascade: **hardcoded defaults → dashboard thresholds → source thresholds**.
+
+### Disabling freshness for a datasource
+
+Use `freshness: false` (shorthand) or `freshness: { enabled: false }` to exclude a specific datasource from freshness tracking. The source still loads data normally — only watermark extraction, server-side checks, and status computation are skipped.
+
+```yaml
+datasources:
+  static_lookup:
+    sql: SELECT * FROM dicts.currencies
+    freshness: false                  # no freshness tracking for this source
+
+  slow_api_data:
+    sql: SELECT * FROM marts.api_data
+    freshness:
+      enabled: false                  # equivalent explicit form
+```
+
+### Tracked sources
+
+Non-view, non-skill datasources are tracked for freshness by default. View sources, skill sources, and datasources with `freshness: false` / `freshness: { enabled: false }` are excluded.
+
+## Selection macros in projection SQL
+
+Projections can reference the current row selection of a widget using `${selection.<widget_id>}`:
+
+```yaml
+projections:
+  filtered_orders:
+    sql: |
+      SELECT * FROM {{source:orders_main}}
+      WHERE campaign_id IN ${selection.campaigns_table}
+```
+
+| Macro | Description |
+|-------|-------------|
+| `${selection.<widget_id>}` | Comma-separated selected values (from `selectable.key` column) |
+| `${selection.<widget_id>('col')}` | Comma-separated values of a specific column from selected rows |
+| `${selection.<widget_id>.value}` | Single selected value |
+| `${selection.<widget_id>.values}` | Array of selected values |
+| `${selection.<widget_id>.if_set}` | Conditional block — only included when selection is non-empty |
+
+The source widget must have `selectable` configured for these macros to work.
+
+## See also
+
+- **`datasource-architecture` rule** — TypeScript implementation details: registry, API routes, DuckDB pipeline, cascade store, widget hooks.
+- **Spec 025** — Full write skills specification with CTE verdict system, post-actions.
+
+## Platform datasources
+
+Platform datasources are built-in sources prefixed with `_`. They fetch data from internal platform stores (e.g., activity log in MongoDB) instead of ClickHouse or external APIs.
+
+### Naming convention
+
+```
+_platform.v<N>.<source_name>[.<time_window>]
+```
+
+- `_` prefix — identifies platform source (handled by `isPlatformSource()`)
+- `platform` — namespace
+- `v<N>` — schema version; bump when breaking changes to columns or behavior
+- `source_name` — the resource (`activity_log`)
+- `time_window` — optional parameter (`24h`, `7d`, `30d`)
+
+### Available sources
+
+| Source ref | Description |
+|---|---|
+| `_platform.v1.activity_log` | Full activity log (up to 1000 rows) |
+| `_platform.v1.activity_log.24h` | Last 24 hours |
+| `_platform.v1.activity_log.7d` | Last 7 days |
+| `_platform.v1.activity_log.30d` | Last 30 days |
+
+### Legacy aliases
+
+| Alias | Resolves to |
+|---|---|
+| `_activity_log` | `_platform.v1.activity_log` |
+
+### Activity log schema (v1)
+
+| Column | Type | Description |
+|---|---|---|
+| `timestamp` | TIMESTAMP | When the action was executed |
+| `org_id` | VARCHAR | Organization ID |
+| `user_id` | VARCHAR | User who performed the action |
+| `skill_id` | VARCHAR | Skill datasource key |
+| `action_id` | VARCHAR | `{source}.{operationId}` |
+| `entity_type` | VARCHAR | Extracted entity type (e.g., `campaign`) |
+| `entity_id` | VARCHAR | Entity ID from params |
+| `action` | VARCHAR | `{source}.{operationId}` |
+| `params` | VARCHAR | JSON-encoded action params |
+| `source` | VARCHAR | `ui`, `mcp`, or `api` |
+| `status` | VARCHAR | `executed`, `failed`, `blocked`, `cancelled` |
+| `error` | VARCHAR | Error message (null on success) |
+| `skill_hash` | VARCHAR | Hash of the skill definition |
+| `context` | VARCHAR | Ad account ID or other context |
+| `is_current_user` | BOOLEAN | Whether the action was performed by the current user |
+
+### Usage in dashboards
+
+```yaml
+datasource: _platform.v1.activity_log.7d
+```
+
+Platform datasources require no `datasources:` definition in YAML — use the source ref directly as the widget `datasource` value.
+
+### How it works
+
+1. Widget references `_platform.v1.activity_log.7d` as datasource
+2. Client detects `_` prefix → `ensureDuckDbPlatformSource()` → `POST /api/export { source: '_platform.v1.activity_log.7d' }`
+3. Server parses the ref, queries the activity log store with time filter, returns Parquet
+4. Parquet is loaded into DuckDB — widget queries locally as usual
+

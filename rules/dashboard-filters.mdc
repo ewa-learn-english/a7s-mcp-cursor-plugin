@@ -1,0 +1,407 @@
+---
+description: Filter types, sources, presets, hierarchy, and SQL template syntax
+globs: dashboards/**/*.yaml
+alwaysApply: false
+---
+
+# Filters
+
+Canonical navigation hierarchy: `root -> dashboard -> tab -> [sections -> widgets]`.
+
+RBAC note: filters shape data inside an already accessible dashboard. They do not grant access and must not be described as an authorization mechanism.
+
+Filters can be defined at dashboard, tab, section, or widget (inline) level. They cascade down: widget inherits section -> tab -> dashboard filters.
+
+## Filter definition
+
+```yaml
+filters:
+  - id: date_range                     # Required. Unique identifier
+    type: date_range                   # Required. See filter types below
+    column: install_date               # Required (nullable). Column this filter targets in SQL
+    label: Date Range                  # Optional in YAML (inferred from id at runtime)
+    placeholder: Select...             # Optional. Override default text shown when no value is set
+    #   Defaults: "Select options" (select), "Select date range" (date_range),
+    #             "Select range" (relative_date), "Search..." (search)
+    icon: Calendar                     # Optional. Lucide icon name
+    required: true                     # Optional. Must have a value
+    clearable: true                    # Optional. Show clear button
+    searchable: true                   # Optional. Enable search in select filters
+    ui_only: false                     # Optional. If true, filter doesn't affect SQL
+    serializable: true                 # Optional. If true, filter is serialized to URL (see URL serialization below)
+    pool: geo                          # Optional. Named pool — hidden by default, shown via "+ Add filter"
+    source: {}                         # Optional. How to get filter options
+    selection: {}                      # Optional. Selection behavior
+    default: {}                        # Optional. Default value
+    presets: []                        # Optional. Predefined value presets
+```
+
+## Filter types
+
+| Type | UI Component | Value Type |
+| ---- | ------------ | ---------- |
+| `select` | MultiSelect dropdown | `string[]` or `string` |
+| `date_range` | DateRangePicker with presets | `{ start, end, preset? }` |
+| `relative_date` | Select with preset options | `{ preset }` |
+| `number_range` | Min/max inputs | `{ min?, max? }` |
+| `search` | Text input | `string` |
+| `boolean` | Checkbox | `boolean` |
+| `segmented` | Button group | `string` |
+
+## Filter sources
+
+### Static options
+
+```yaml
+source:
+  type: static
+  options:
+    - { value: ios, label: iOS }
+    - { value: android, label: Android, icon: Smartphone }
+    - { value: web, label: Web, disabled: true }
+```
+
+### Query (SQL from ClickHouse)
+
+```yaml
+source:
+  type: query
+  sql: "SELECT DISTINCT media_source FROM marts.marketing_creatives"
+  value_field: media_source            # Optional. Column for value
+  label_field: media_source            # Optional. Column for label
+```
+
+### Projection (from DuckDB projection)
+
+```yaml
+source:
+  type: projection
+  projection: daily_costs_by_source    # Projection key
+  value_field: media_source            # Required. Column for value
+  label_field: media_source            # Optional. Column for label
+  order_by: media_source               # Optional. Sort column
+  limit: 100                           # Optional. Max options
+```
+
+### Cascade (depends on another filter)
+
+```yaml
+source:
+  type: cascade
+  depends_on: media_source             # Parent filter id
+```
+
+### Remote (server-side search)
+
+```yaml
+source:
+  type: remote
+  search_endpoint: /api/search/campaigns
+  min_search_length: 2                 # Optional. Min chars before search
+```
+
+## Selection behavior
+
+```yaml
+selection:
+  empty_means: all                     # all | none. What empty selection means
+  allow_select_all: true               # Show "Select all" button
+  allow_exclude_mode: true             # Allow switching to exclude mode
+  min_selected: 1                      # Min items required
+  max_selected: 5                      # Max items allowed
+```
+
+## Presets (for date_range)
+
+```yaml
+presets:
+  - { id: today, label: Today, tag: Live }
+  - { id: yesterday, label: Yesterday, tag: Live }
+  - { id: last_7_days, label: "Last 7 days", tag: Rolling }
+  - { id: last_14_days, label: "Last 14 days", tag: Rolling }
+  - { id: last_30_days, label: "Last 30 days", tag: Rolling }
+  - { id: this_month, label: "This month" }
+  - { id: last_month, label: "Last month" }
+  - { id: last_6_months, label: "Last 6 months" }
+  - { id: last_12_months, label: "Last 12 months" }
+default:
+  preset: last_14_days
+```
+
+## Default values
+
+```yaml
+# Preset reference
+default:
+  preset: last_14_days
+
+# Direct value
+default: "ios"
+
+# Array
+default: [ios, android]
+
+# Range
+default:
+  start: "2024-01-01"
+  end: "2024-12-31"
+
+# Number range
+default:
+  min: 0
+  max: 100
+```
+
+## Filter hierarchy
+
+Dashboard filters -> tab filters -> section filters -> widget inline_filters.
+
+Widgets can control which inherited filters apply:
+
+```yaml
+widgets:
+  - id: my_widget
+    type: rich_table
+    filters:
+      include: [date_range]            # Only use these from parent scopes
+    # OR
+    filters:
+      exclude: [media_source]          # Use all except these
+    inline_filters:                    # Widget-scoped filters
+      - id: local_filter
+        type: select
+        column: status
+        source:
+          type: static
+          options:
+            - { value: active, label: Active }
+            - { value: paused, label: Paused }
+```
+
+## Section-level filter example
+
+```yaml
+sections:
+  - id: total-by-ad
+    title: Total by Ad
+    filters:
+      - id: media_source
+        type: select
+        column: media_source
+        label: Media Source
+        source:
+          type: projection
+          projection: daily_costs_by_source
+          value_field: media_source
+          label_field: media_source
+        selection:
+          empty_means: all
+    widgets: [...]
+```
+
+## Directory-based dashboards: shared filters
+
+In directory-based dashboards, filters can be defined in `_shared/_filters.yaml`:
+
+```yaml
+# _shared/_filters.yaml — array, replaces dashboard-level filters
+- id: date_range
+  type: date_range
+  column: install_date
+  default:
+    preset: last_14_days
+```
+
+Override rule: `_shared/_filters.yaml` **replaces** dashboard-level filters entirely (not merged).
+
+### Tab-level filter override
+
+Composite tabs (directory tabs) can override dashboard-level filters via `<tab>/_shared/_filters.yaml`:
+
+```
+dashboards/
+  my-dashboard/
+    _shared/_filters.yaml          ← dashboard-level (base)
+    01-overview/
+      _tab.yaml                    ← meta only (id, title)
+      _shared/_filters.yaml        ← tab-level override (replaces dashboard filters for this tab)
+      01-section.yaml
+```
+
+Priority: `<tab>/_shared/_filters.yaml` > section-file `filters:` > dashboard `_shared/_filters.yaml`.
+
+**Deprecated:** defining `filters:` directly in composite tab `_tab.yaml`. Move to `<tab>/_shared/_filters.yaml` instead.
+
+## Smart Table Search (`global_search`)
+
+Smart search is a widget-level feature for `rich_table`. It is **not** a filter type in the traditional filter hierarchy — it works by injecting inline column filters dynamically.
+
+- Configured via `filtering.global_search` in the widget YAML (see `dashboard-rich-table` rule for full docs)
+- Uses Orama FTS in-memory index built from DuckDB dimension values
+- Resolved tokens are converted to `ColumnFiltersState` entries and applied as inline filters (highlighted in blue)
+- Does not participate in the dashboard → section filter cascade
+
+```yaml
+# In a rich_table widget:
+filtering:
+  global_search:
+    enabled: true
+    show_token_pills: false    # Optional. Show parsed-tokens badge
+    token_pills_expanded: true # Optional. Start pills tray expanded (default: true)
+```
+
+## Inline column filters (rich_table)
+
+Column-level filters configured via `filtering.show_filter_row: true` use bi-directional cross-filtering: each select filter's dropdown shows only values that exist given **all other** active inline filters, regardless of column order.
+
+- Filters are independent — changing one does not reset others.
+- If a selected value disappears from available options (due to other filter changes), it is auto-pruned from the selection.
+- Works with all datasource types: base sources, projections, view datasources.
+- Text, number, and date inline filters also contribute to cross-filtering for select columns.
+- Data presets change the base SQL, so select options reflect the active preset's data subset.
+
+### Smart search interaction
+
+Smart search (`global_search`) results participate in cross-filtering:
+
+1. **Narrow options** — when a search query resolves to column filters (e.g. `en fb` → `language=en, media_source=fb`), select dropdowns for other columns narrow accordingly. Virtual search IDs (`__search_text`, negations, ranges) are ignored.
+2. **Lock controls** — columns whose value comes from smart search are disabled (user cannot override the search-derived value). A blue ring indicates the locked state.
+3. **Clear restores** — clearing the search input removes all search-derived values and re-enables all controls.
+
+## Root-level shared filters
+
+A root can define shared filters in `_shared/_filters.yaml` (next to `+layout.yaml`). These are inherited by **all dashboards** in that root that do not define their own filters:
+
+```yaml
+# dashboards/<root>/_shared/_filters.yaml — inherited by all dashboards
+- id: date_range
+  type: date_range
+  column: install_date
+  default:
+    preset: last_14_days
+```
+
+Override rule: if a dashboard defines **any** filters via `_shared/_filters.yaml`, root-level filters are completely replaced. If a dashboard defines no dashboard-level filters, root-level filters are inherited.
+
+### Full filter hierarchy
+
+Root-level filters → dashboard filters → tab filters → section filters → widget inline_filters.
+
+## URL serialization
+
+Filters can be serialized to URL for shareable dashboard state. Two modes:
+
+- **Live sync** — dashboard-scope filters are auto-synced to the address bar as `f_<id>=value` via `replaceState` (debounced)
+- **Share link** — "Copy link to widget/section" generates a full URL (clipboard only) with scoped filters compressed in a `ctx` param + navigation hash
+
+### `serializable` flag
+
+| Scope | Default | Effect |
+| ----- | ------- | ------ |
+| Dashboard filters | `true` | Auto-synced to URL; opt-out via `serializable: false` |
+| Section filters | `false` | Included in share link only if `serializable: true` |
+| Widget inline filters | `false` | Included in share link only if `serializable: true` |
+
+```yaml
+# Dashboard filter — serialized by default, no change needed
+filters:
+  - id: date_range
+    type: date_range
+    column: install_date
+
+  # Opt-out for ui_only filters that have no sharing value
+  - id: comparison
+    type: segmented
+    ui_only: true
+    serializable: false
+
+# Section filter — opt-in
+sections:
+  - id: funnel
+    filters:
+      - id: funnel_step
+        type: select
+        column: step
+        serializable: true       # included in share link
+```
+
+### URL format
+
+| Value type | Format | Example |
+| ---------- | ------ | ------- |
+| String | raw | `f_status=active` |
+| Array (include) | comma-separated | `f_channel=fb,google` |
+| Array (exclude) | `!` prefix | `f_channel=!fb,google` |
+| Date range (custom) | `start~end` | `f_date_range=2024-01-01~2024-02-01` |
+| Date range (preset) | `preset:<id>` | `f_date_range=preset:last_30_days` |
+| Boolean | `true`/`false` | `f_active=true` |
+
+### Section & widget navigation
+
+Sections and widgets have DOM `id` attributes (`id="s-{sectionId}"`, `id="w-{widgetId}"`) and support hash-based navigation:
+
+```text
+/dashboards/<root>/<dashboard>/<tab>#s:section_id       → scroll to section
+/dashboards/<root>/<dashboard>/<tab>#w:widget_id        → scroll to widget
+```
+
+Collapsed sections auto-expand when navigated to.
+
+### `shareable` flag on sections/widgets
+
+Sections and widgets support `shareable: true` (default for sections with titles, and widgets with titles). This shows a share button that generates a link with the current filter context + navigation anchor.
+
+## Filter pools
+
+Filters can be assigned to named **pools** for progressive disclosure. Filters without a `pool` are always visible; filters with a `pool` are hidden by default and available via a "+ Add filter" button in the filter bar.
+
+```yaml
+filters:
+  # Always visible — no pool
+  - id: date_range
+    type: date_range
+    column: dt
+    default:
+      preset: last_14_days
+
+  - id: platform
+    type: select
+    column: platform
+    source:
+      type: query
+      sql: "SELECT DISTINCT platform AS value, platform AS label FROM {{source:main}}"
+
+  # Hidden by default — pool: language
+  - id: native_language
+    type: select
+    column: native_language
+    label: Native language
+    pool: language
+    source:
+      type: query
+      sql: "SELECT DISTINCT native_language AS value, native_language AS label FROM {{source:main}}"
+
+  - id: learning_language
+    type: select
+    column: learning_language
+    label: Learning language
+    pool: language
+    source:
+      type: query
+      sql: "SELECT DISTINCT learning_language AS value, learning_language AS label FROM {{source:main}}"
+```
+
+Pool labels are auto-derived from the pool id: `snake_case / kebab-case → Title Case` (e.g. `campaign_details` → "Campaign Details").
+
+**Restriction:** A filter with `pool` cannot also have `default`. A hidden pool filter with a default value would silently filter data — always remove either `pool` or `default`.
+
+User customization (which pool filters are shown) persists in localStorage via Zustand store.
+
+## SQL template syntax
+
+In base source SQL (ClickHouse), use `${filters.filter_id('column_expression')}`:
+
+```sql
+WHERE ${filters.date_range('toDate(install_date)')}
+  AND ${filters.media_source('media_source')}
+```

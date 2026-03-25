@@ -1,0 +1,158 @@
+---
+description: Markdown widget — inline SQL, Handlebars templates, styling
+globs: dashboards/**/*.yaml
+alwaysApply: false
+---
+
+# Markdown Widget
+
+The `markdown` widget renders dynamic text using Handlebars templates populated with data from an inline SQL query.
+
+## Basic structure
+
+```yaml
+- id: summary
+  type: markdown
+  col_span: 6
+  row_span: 2
+  datasource:
+    sql: |                              # Inline SQL (runs in DuckDB)
+      SELECT SUM(costs) AS total_costs, SUM(revenue_net) AS total_revenue
+      FROM {{source:total_by_ad}}
+  template: |                           # Handlebars template
+    ## Total by Ad
+    Revenue: **{{currency_short total_revenue}}**
+    Costs: **{{currency_short total_costs}}**
+  render:                               # Optional
+    sanitize: true                      # Sanitize HTML (default: true)
+    allow_html: false                   # Allow raw HTML in template
+  style:                                # Optional
+    prose: true                         # Enable prose typography
+    prose_size: base                    # sm | base | lg
+    custom_css: "border-b pb-4 mb-4"   # Additional CSS classes
+  links:                                # Optional
+    enabled: true
+    base_url: /dashboards/product/samples  # Base URL for relative links
+```
+
+## Data source
+
+Markdown widgets use inline SQL (not a datasource key). The SQL runs in DuckDB and references materialized sources via `{{source:key}}`:
+
+```yaml
+datasource:
+  sql: |
+    WITH base AS (
+      SELECT language, SUM(costs) AS spend
+      FROM {{source:total_by_ad}}
+      GROUP BY language
+    )
+    SELECT
+      LIST(STRUCT_PACK(language := language, share := spend / SUM(spend) OVER ())) AS top_languages
+    FROM base
+    ORDER BY spend DESC
+    LIMIT 3
+```
+
+The query result is a single row. Each column becomes a template variable.
+
+## Handlebars template
+
+### Basic variables
+
+```handlebars
+Revenue: **{{total_revenue}}**
+Costs: **{{total_costs}}**
+```
+
+### Formatting helpers
+
+```handlebars
+{{currency_short revenue_net}}        → $1.2M, $450K, $23
+{{number installs}}                   → 1,234,567
+{{percent share}}                     → 45.2%
+```
+
+### Iteration
+
+```handlebars
+{{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
+```
+
+### Conditionals
+
+```handlebars
+{{#gt revenue_net 0}}
+Revenue is positive!
+{{/gt}}
+
+{{#gt unprofitable_share 0.2}}
+⚠️ Warning: Unprofitable campaigns above 20%.
+{{/gt}}
+```
+
+### Links
+
+```handlebars
+{{link "Open detailed report ->" to="/dashboards/product/samples/01-marketing" passFilters=true}}
+```
+
+`passFilters=true` forwards current filter state to the linked dashboard.
+
+## Styling
+
+```yaml
+style:
+  prose: true                           # Enable Tailwind prose for readable text
+  prose_size: sm | base | lg            # Text size
+  custom_css: "border-b pb-4 mb-4"     # Extra Tailwind classes
+```
+
+## Full example
+
+```yaml
+- id: campaign_summary_header
+  type: markdown
+  col_span: 12
+  row_span: 1
+  datasource:
+    sql: |
+      WITH base AS (
+        SELECT campaign, language, costs, annual_revenue
+        FROM {{source:total_by_ad}}
+      ),
+      lang AS (
+        SELECT language, SUM(costs) AS spend FROM base GROUP BY language
+      ),
+      totals AS (
+        SELECT SUM(costs) AS total_spend FROM base
+      ),
+      top_languages AS (
+        SELECT language, spend FROM lang ORDER BY spend DESC LIMIT 3
+      ),
+      top_languages_list AS (
+        SELECT LIST(STRUCT_PACK(
+          language := language,
+          share := spend / NULLIF((SELECT total_spend FROM totals), 0)
+        )) AS top_languages
+        FROM top_languages
+      )
+      SELECT (SELECT top_languages FROM top_languages_list) AS top_languages
+  template: |
+    ## 📊 Total by Campaign
+
+    Top languages by spend: {{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
+  style:
+    prose: true
+    prose_size: base
+    custom_css: "border-b pb-4 mb-4"
+```
+
+## Rules
+
+- `datasource` is always inline `{ sql: "..." }`, never a string key
+- SQL runs in DuckDB (use DuckDB syntax, not ClickHouse)
+- Use `{{source:key}}` to reference materialized data sources
+- Template receives a single row — aggregate data in SQL
+- Markdown supports standard formatting: `**bold**`, `## headings`, lists, etc.
+- When linking to another dashboard, prefer canonical dashboard paths because RBAC grants bind to those resource paths.
