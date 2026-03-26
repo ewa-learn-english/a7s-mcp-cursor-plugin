@@ -1,0 +1,16 @@
+{
+  "name": "a7s-skipper",
+  "owner": {
+    "name": "EWA"
+  },
+  "metadata": {
+    "description": "A7S Skipper BI dashboard authoring tools"
+  },
+  "plugins": [
+    {
+      "name": "a7s-skipper",
+      "source": ".",
+      "description": "BI dashboard authoring for A7S Skipper — semantic metrics catalog, SQL exploration, YAML dashboard builder with OAuth 2.1"
+    }
+  ]
+}
