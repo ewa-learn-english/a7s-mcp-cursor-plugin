@@ -34,6 +34,10 @@ filters:
     selection: {}                      # Optional. Selection behavior
     default: {}                        # Optional. Default value
     presets: []                        # Optional. Predefined value presets
+    true_label: "Yes"                  # Optional. Boolean only: label for true state (default: "Yes")
+    false_label: "No"                  # Optional. Boolean only: label for false state (default: "No")
+    allow_none: false                  # Optional. Segmented only: allow deselecting all (default: false)
+    icon_only: false                   # Optional. Segmented only: show only icons, labels as tooltips
 ```
 
 ## Filter types
@@ -45,8 +49,111 @@ filters:
 | `relative_date` | Select with preset options | `{ preset }` |
 | `number_range` | Min/max inputs | `{ min?, max? }` |
 | `search` | Text input | `string` |
-| `boolean` | Checkbox | `boolean` |
-| `segmented` | Button group | `string` |
+| `boolean` | Two-state toggle (Yes/No) | `boolean` |
+| `segmented` | Toggle group | `string \| string[]` |
+
+## Boolean filter
+
+Two-state toggle (Yes/No). Always has a value — `default` is required.
+
+```yaml
+- id: is_organic
+  type: boolean
+  column: is_organic
+  label: Organic
+  default: false
+
+# Custom labels
+- id: is_active
+  type: boolean
+  column: is_active
+  label: Status
+  true_label: Active
+  false_label: Inactive
+  default: true
+```
+
+SQL output: `column = TRUE` or `column = FALSE`.
+
+## Segmented filter
+
+Toggle group with SQL rendering. Supports static options, SQL-loaded options, multi-select, and icon-only mode.
+
+```yaml
+# Single-select (default)
+- id: platform
+  type: segmented
+  column: platform
+  default: ios
+  source:
+    type: static
+    options:
+      - { value: ios, label: iOS, icon: Apple }
+      - { value: android, label: Android, icon: Smartphone }
+
+# Multi-select with deselect
+- id: device
+  type: segmented
+  column: device_type
+  allow_none: true
+  source:
+    type: static
+    options:
+      - { value: phone, label: Phone }
+      - { value: tablet, label: Tablet }
+      - { value: desktop, label: Desktop }
+
+# SQL-loaded options
+- id: country
+  type: segmented
+  column: country
+  source:
+    sql: "SELECT DISTINCT country FROM {{source:main}} ORDER BY country LIMIT 8"
+
+# Icon-only UI toggle
+- id: view_mode
+  type: segmented
+  column: null
+  ui_only: true
+  default: table
+  icon_only: true
+  source:
+    type: static
+    options:
+      - { value: table, label: Table view, icon: Table }
+      - { value: chart, label: Chart view, icon: BarChart }
+```
+
+SQL rendering:
+- Single value: `column = 'value'`
+- Multi-select: `column IN ('a', 'b')`
+- No selection (allow_none): `1=1`
+- No column: `1=1` (ui_only behavior)
+
+## Select single-select mode
+
+When `selection.max_selected: 1`, the select filter switches to single-select mode:
+
+- Auto-applies on click (no Apply button)
+- No checkboxes, include/exclude toggle, or select-all
+- Shows selected label instead of "1 selected"
+- Popover closes on selection
+
+```yaml
+- id: currency
+  type: select
+  column: currency
+  label: Currency
+  source:
+    type: static
+    options:
+      - { value: USD, label: "US Dollar" }
+      - { value: EUR, label: Euro }
+      - { value: GBP, label: "British Pound" }
+  selection:
+    max_selected: 1
+  default: USD
+```
 
 ## Filter sources
 
@@ -335,6 +442,8 @@ sections:
 | Date range (custom) | `start~end` | `f_date_range=2024-01-01~2024-02-01` |
 | Date range (preset) | `preset:<id>` | `f_date_range=preset:last_30_days` |
 | Boolean | `true`/`false` | `f_active=true` |
+| Segmented (single) | raw | `f_platform=ios` |
+| Segmented (multi) | comma-separated | `f_device=phone,tablet` |
 
 ### Section & widget navigation
 
