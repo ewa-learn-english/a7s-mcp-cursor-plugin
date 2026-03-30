@@ -36,6 +36,8 @@ filters:
     presets: []                        # Optional. Predefined value presets
     true_label: "Yes"                  # Optional. Boolean only: label for true state (default: "Yes")
     false_label: "No"                  # Optional. Boolean only: label for false state (default: "No")
+    true_value: 1                      # Optional. Boolean only: SQL literal for true (default: 1)
+    false_value: 0                     # Optional. Boolean only: SQL literal for false (default: 0)
     allow_none: false                  # Optional. Segmented only: allow deselecting all (default: false)
     icon_only: false                   # Optional. Segmented only: show only icons, labels as tooltips
 ```
@@ -71,9 +73,18 @@ Two-state toggle (Yes/No). Always has a value — `default` is required.
   true_label: Active
   false_label: Inactive
   default: true
+
+# Custom SQL values (for non-standard boolean columns)
+- id: status
+  type: boolean
+  column: status
+  label: Status
+  true_value: "'active'"
+  false_value: "'inactive'"
+  default: true
 ```
 
-SQL output: `column = TRUE` or `column = FALSE`.
+SQL output: `column = 1` or `column = 0` by default. With `true_value`/`false_value`: `column = <true_value>` or `column = <false_value>`.
 
 ## Segmented filter
 
