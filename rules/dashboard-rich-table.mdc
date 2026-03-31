@@ -411,13 +411,22 @@ projections:
 
 ## Export
 
+CSV download from the kebab menu (⋮) in the table header. Enabled by default for all tables — no config needed. Use `export` to customize or disable.
+
 ```yaml
+# Disable export
 export:
-  enabled: true
-  formats: [csv, excel]
-  include_group_rows: true               # Include group header rows
-  include_subtotals: true                # Include subtotal rows
+  enabled: false
+
+# Customize (all fields optional — shown with defaults)
+export:
+  enabled: true                          # Default: true (opt-out with false)
+  formats: [csv]                         # Supported: csv (excel planned)
+  include_group_rows: false              # Include group header rows in CSV
+  include_subtotals: false               # Include subtotal rows in CSV
 ```
+
+Exports all rows matching current filters and sorting — not just the visible viewport.
 
 ## Conditional formatting
 
