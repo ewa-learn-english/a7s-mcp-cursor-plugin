@@ -25,7 +25,9 @@ filters:
     #             "Select range" (relative_date), "Search..." (search)
     icon: Calendar                     # Optional. Lucide icon name
     required: true                     # Optional. Must have a value
-    clearable: true                    # Optional. Show clear button
+    clearable: true                    # Optional. Allow clearing value to empty (default: true)
+    #   Applies to: select (single-select), segmented (single-select)
+    #   When cleared, SQL renders as 1=1 (no filter). Opt out with clearable: false
     searchable: true                   # Optional. Enable search in select filters
     ui_only: false                     # Optional. If true, filter doesn't affect SQL
     serializable: true                 # Optional. If true, filter is serialized to URL (see URL serialization below)
@@ -88,7 +90,7 @@ SQL output: `column = 1` or `column = 0` by default. With `true_value`/`false_va
 
 ## Segmented filter
 
-Toggle group with SQL rendering. Supports static options, SQL-loaded options, multi-select, and icon-only mode.
+Toggle group with SQL rendering. Supports static options, SQL-loaded options, multi-select, and icon-only mode. Single-select segmented is clearable by default (click the active segment to deselect). Opt out with `clearable: false`. `allow_none: true` also enables deselection (backward compat).
 
 ```yaml
 # Single-select (default)
@@ -138,7 +140,7 @@ Toggle group with SQL rendering. Supports static options, SQL-loaded options, mu
 SQL rendering:
 - Single value: `column = 'value'`
 - Multi-select: `column IN ('a', 'b')`
-- No selection (allow_none): `1=1`
+- No selection (clearable / allow_none): `1=1`
 - No column: `1=1` (ui_only behavior)
 
 ## Select single-select mode
@@ -149,6 +151,8 @@ When `selection.max_selected: 1`, the select filter switches to single-select mo
 - No checkboxes, include/exclude toggle, or select-all
 - Shows selected label instead of "1 selected"
 - Popover closes on selection
+- Clearable by default — click the selected value to deselect, or use the X button. Opt out with `clearable: false`
+- When cleared, SQL renders as `1=1` (no filter applied)
 
 ```yaml
 - id: currency
