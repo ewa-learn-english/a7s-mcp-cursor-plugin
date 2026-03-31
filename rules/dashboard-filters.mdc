@@ -42,6 +42,7 @@ filters:
     false_value: 0                     # Optional. Boolean only: SQL literal for false (default: 0)
     allow_none: false                  # Optional. Segmented only: allow deselecting all (default: false)
     icon_only: false                   # Optional. Segmented only: show only icons, labels as tooltips
+    slider_config: {}                  # Optional. Slider only: { min, max, step?, range?, show_input?, format? }
 ```
 
 ## Filter types
@@ -55,6 +56,7 @@ filters:
 | `search` | Text input | `string` |
 | `boolean` | Two-state toggle (Yes/No) | `boolean` |
 | `segmented` | Toggle group | `string \| string[]` |
+| `slider` | Range slider (dual/single thumb) | `{ min?, max? }` or `number` |
 
 ## Boolean filter
 
@@ -142,6 +144,45 @@ SQL rendering:
 - Multi-select: `column IN ('a', 'b')`
 - No selection (clearable / allow_none): `1=1`
 - No column: `1=1` (ui_only behavior)
+
+## Slider filter
+
+Range slider for bounded numeric dimensions. Supports dual-thumb (range) and single-thumb modes.
+
+Requires `slider_config` with explicit `min` and `max` bounds. Reuses `number_range` value structure — no new value types needed.
+
+```yaml
+# Dual-thumb range slider
+- id: age_range
+  type: slider
+  column: user_age
+  label: Age Range
+  slider_config:
+    min: 0                 # Required. Lower bound
+    max: 100               # Required. Upper bound
+    step: 1                # Optional. Step size (default: 1)
+    range: true            # Optional. true = two thumbs (default), false = single thumb
+    show_input: true       # Optional. Show numeric input fields alongside slider
+    format: "{value} yrs"  # Optional. Display format ({value} placeholder)
+  default:
+    min: 18
+    max: 65
+
+# Single-thumb minimum threshold
+- id: min_spend
+  type: slider
+  column: total_spend
+  label: Minimum Spend
+  slider_config:
+    min: 0
+    max: 10000
+    step: 100
+    range: false
+    format: "${value}"
+  default: 500
+```
+
+SQL rendering: identical to `number_range` — `column >= min AND column <= max` (range) or `column >= value` (single-thumb). Empty/null → `1=1`.
 
 ## Select single-select mode
 
@@ -459,6 +500,7 @@ sections:
 | Boolean | `true`/`false` | `f_active=true` |
 | Segmented (single) | raw | `f_platform=ios` |
 | Segmented (multi) | comma-separated | `f_device=phone,tablet` |
+| Number range / Slider | `min~max` | `f_age=18~65` |
 
 ### Section & widget navigation
 
