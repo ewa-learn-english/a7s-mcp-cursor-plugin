@@ -195,6 +195,41 @@ sections:
         ai_hint: "Main overview table with costs, revenue, ROI, conversion metrics."
 ```
 
+## Layout best practices
+
+Prefer section-level `layout: horizontal` + `columns: N` over widget-level `col_span` for multi-column layouts:
+
+```yaml
+# Good — section controls layout
+sections:
+  - id: kpi-cards
+    layout: horizontal
+    columns: 3
+    widgets:
+      - id: revenue-card
+        type: markdown
+      - id: costs-card
+        type: markdown
+      - id: roi-card
+        type: markdown
+
+# Avoid — col_span on each widget
+sections:
+  - id: kpi-cards
+    widgets:
+      - id: revenue-card
+        type: markdown
+        col_span: 4
+      - id: costs-card
+        type: markdown
+        col_span: 4
+      - id: roi-card
+        type: markdown
+        col_span: 4
+```
+
+Reserve `col_span` for unequal-width layouts and wide tables (`col_span: 15`). Reserve `row_span` for multi-track charts that need extra height.
+
 ## Rich table standards
 
 ### Column order

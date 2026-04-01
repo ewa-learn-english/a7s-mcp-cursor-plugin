@@ -422,9 +422,51 @@ Use `ai_hint` for advice on _how to use_ the data (vs. `description` which says 
 
 Column-level `description` acts as `ai_hint` fallback — when a rich_table column has `description` but no explicit `ai_hint`, the description text is used as the AI hint. Write `description` for what the data _is_; write `ai_hint` for how to _use_ it.
 
-## Grid system
+## Layout system
+
+### Prefer section-level layout over widget-level `col_span`
+
+Use `layout: horizontal` with `columns: N` on sections to arrange widgets side by side. This is the **preferred** approach for multi-column layouts — it produces equal-width columns, handles responsive behavior, and keeps widget definitions clean.
+
+```yaml
+sections:
+  - id: kpi-cards
+    layout: horizontal
+    columns: 3
+    widgets:
+      - id: revenue-card
+        type: markdown
+        # no col_span needed — section divides space equally
+      - id: costs-card
+        type: markdown
+      - id: roi-card
+        type: markdown
+
+  - id: charts-row
+    layout: horizontal
+    columns: 2
+    widgets:
+      - id: trend-chart
+        type: chart
+      - id: breakdown-chart
+        type: chart
+```
+
+### When to use `col_span` / `row_span` instead
+
+Reserve `col_span` and `row_span` for cases that section layout cannot express:
+
+| Use case | Approach |
+|----------|----------|
+| Side-by-side widgets (equal width) | `layout: horizontal` + `columns: N` |
+| Side-by-side widgets (unequal width) | `col_span` on individual widgets |
+| Wide table with horizontal scroll | `col_span: 15` (values above 12) |
+| Multi-track charts needing more height | `row_span: 2` or higher |
+| Full-width widget (default) | Neither — `col_span: 12` is the default |
+
+### Grid system reference
 
 - Default grid: 12 columns
-- `col_span: 6` = half width, `col_span: 12` = full width
+- `col_span: 6` = half width, `col_span: 12` = full width (default)
 - Values above 12 (e.g. `col_span: 15`) are allowed for wide tables with horizontal scroll
 - `row_span` controls height in grid rows
