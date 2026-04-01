@@ -306,7 +306,7 @@ filtering:
 
 | Token | Example | Resolves to |
 |-------|---------|-------------|
-| Keyword | `en` | Filter on matching dimension value (Orama FTS) |
+| Keyword | `en` | Filter on matching dimension value (full-text search) |
 | Quoted phrase | `"hello world"` | Text search `ILIKE '%hello world%'` |
 | Negation | `not nogti`, `-nogti`, `!nogti` | Exclusion `NOT ILIKE '%nogti%'` |
 | Range | `costs>300`, `ecpa<=50` | Column filter with operator |
@@ -314,16 +314,16 @@ filtering:
 
 **How it works:**
 
-1. On focus, an Orama FTS index is built from DuckDB dimension values (UNION ALL batch query)
+1. On focus, a full-text search index is built from DuckDB dimension values
 2. Values are ranked by a composite priority: metric-rank (from sort metrics), row frequency, sort position, column order
-3. Fuzzy column matching (Levenshtein) resolves typos in range expressions (`cost>300` → `costs>300`)
+3. Fuzzy column matching resolves typos in range expressions (`cost>300` → `costs>300`)
 4. Resolved tokens are compiled to SQL WHERE clauses and injected as inline column filters (highlighted in blue)
-5. Results re-ranked by combining Orama text score with value priority
+5. Results re-ranked by combining text relevance score with value priority
 
 **DevTools integration:**
 
 - `Cmd+Shift+D` / `Ctrl+Shift+D` opens DevTools (works in production)
-- **Search tab**: build indexes, inspect field weights, test queries with raw Orama hits and resolved tokens
+- **Search tab**: build indexes, inspect field weights, test queries with search hits and resolved tokens
 
 ## Sorting
 
@@ -353,7 +353,7 @@ totals:
 
 ## Selectable rows
 
-Enable row selection with `selectable`. The full Arrow row is stored in a global selection store and can be consumed by other widgets via `${selection.*}` SQL templates or Handlebars `{{selection.*}}`.
+Enable row selection with `selectable`. The selected row data is stored in a global selection store and can be consumed by other widgets via `${selection.*}` SQL templates or Handlebars `{{selection.*}}`.
 
 ```yaml
 # Simple: single-select, click to highlight
@@ -369,7 +369,7 @@ selectable:
   columns: [id, name, experiment_id]
 ```
 
-Identity uses the Arrow row index (`_arrowIndex`). By default, dimension columns are stored. Use `selectable.columns` when consumer projections reference columns not in `widget.columns` — the system also auto-computes required columns from `${selection.widget_id("col")}` references in projection SQL. Selection is cleared automatically when data re-fetches.
+Identity uses the row index. By default, dimension columns are stored. Use `selectable.columns` when consumer projections reference columns not in `widget.columns` — the system also auto-computes required columns from `${selection.widget_id("col")}` references in projection SQL. Selection is cleared automatically when data re-fetches.
 
 A widget with `selectable` cannot also have `highlight` (mutually exclusive).
 

@@ -400,8 +400,8 @@ Priority: `<tab>/_shared/_filters.yaml` > section-file `filters:` > dashboard `_
 Smart search is a widget-level feature for `rich_table`. It is **not** a filter type in the traditional filter hierarchy — it works by injecting inline column filters dynamically.
 
 - Configured via `filtering.global_search` in the widget YAML (see `dashboard-rich-table` rule for full docs)
-- Uses Orama FTS in-memory index built from DuckDB dimension values
-- Resolved tokens are converted to `ColumnFiltersState` entries and applied as inline filters (highlighted in blue)
+- Uses a full-text search index built from DuckDB dimension values
+- Resolved tokens are applied as inline column filters (highlighted in blue)
 - Does not participate in the dashboard → section filter cascade
 
 ```yaml
@@ -561,7 +561,7 @@ Pool labels are auto-derived from the pool id: `snake_case / kebab-case → Titl
 
 **Restriction:** A filter with `pool` cannot also have `default`. A hidden pool filter with a default value would silently filter data — always remove either `pool` or `default`.
 
-User customization (which pool filters are shown) persists in localStorage via Zustand store.
+User customization (which pool filters are shown) persists in localStorage.
 
 ## SQL template syntax
 

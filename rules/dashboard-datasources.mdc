@@ -244,8 +244,8 @@ All widget types support an inline `datasource: { sql }` object instead of a str
 
 ## Data flow
 
-1. Dashboard loads -> base source SQL sent to ClickHouse via `/api/export` -> Parquet returned
-2. Parquet loaded into DuckDB as `source_{dashboardId}_{key}`
+1. Dashboard loads → base source SQL is executed on ClickHouse and the result is returned as Parquet
+2. Parquet is loaded into local DuckDB
 3. Projections execute in DuckDB against the materialized base table
 4. Widgets query DuckDB locally (never remote)
 
@@ -389,7 +389,7 @@ update_campaign_budget:
 | `invalidate: <key>` | Server + client | Clears server skill cache; marks source `skipCache` for next fetch |
 | `sql: <stmt>` | Client only | Runs UPDATE/INSERT on local DuckDB; `{{source:xxx}}` → table, `{param}` → write params |
 
-**Flow:** `sql` post-actions execute instantly on client DuckDB → `bumpDatasourceHash` triggers widget re-render → `reExecuteDependentViews` refreshes all dependent views → `invalidate` marks server cache stale for eventual consistency.
+**Flow:** `sql` post-actions execute instantly on local DuckDB → widgets re-render → dependent views refresh → `invalidate` marks server cache stale for eventual consistency.
 
 ### CTE verdict convention
 
@@ -566,7 +566,7 @@ Platform datasources require no `datasources:` definition in YAML — use the so
 ### How it works
 
 1. Widget references `_platform.v1.activity_log.7d` as datasource
-2. Client detects `_` prefix → `ensureDuckDbPlatformSource()` → `POST /api/export { source: '_platform.v1.activity_log.7d' }`
-3. Server parses the ref, queries the activity log store with time filter, returns Parquet
+2. Client detects the `_` prefix and sends the source ref to the server
+3. Server parses the ref, queries the activity log store with the time filter, and returns Parquet
 4. Parquet is loaded into DuckDB — widget queries locally as usual
 

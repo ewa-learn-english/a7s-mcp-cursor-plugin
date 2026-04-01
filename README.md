@@ -52,18 +52,6 @@ The plugin includes 8 rules covering every aspect of dashboard YAML:
 - **dashboard-mappings** — Value mapping dictionaries
 - **dashboard-markdown** — Dynamic text widgets with Handlebars templates
 
-## Development
-
-This plugin is maintained as a `cursor-plugin/` subdirectory in the [a7s monorepo](https://github.com/ewa-learn-english/a7s) and published to a standalone repo via `git subtree push`.
-
-```bash
-# Sync rules from packages/cli/rules/
-task plugin:sync
-
-# Push to the plugin repository
-task plugin:push
-```
-
 ## License
 
 Proprietary — EWA

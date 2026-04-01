@@ -12,11 +12,9 @@ Style conventions and patterns for building A7S Skipper dashboards. Follow these
 
 ## RBAC v2 source of truth
 
-- Treat `orgs.grants[]` as the canonical access model in A7S Skipper.
-- Keep dashboard paths stable and intentional: grants bind to dashboard resource paths.
-- Superadmin is DB-backed at runtime; do not suggest env-based `SUPERADMINS` authorization flows.
-- Better Auth membership is binary (`member` / `org_admin`); resource access still comes only from grants.
-- API tokens are org-scoped bearer credentials that resolve through `token:{token_id}` grants.
+- Access is managed through organization-level grants that bind to dashboard resource paths.
+- Keep dashboard paths stable and intentional: renaming paths changes the resource names grants match against.
+- API tokens are org-scoped bearer credentials resolved through grants.
 
 ## Root structure
 
@@ -457,7 +455,6 @@ The `preview_query` and `explore_metric` MCP tools return query results through 
 
 - Results with ≤ 500 rows are returned fully inline (no `resource_link`).
 - Results with > 500 rows are truncated in `content.text` with a `resource_link` to the full dataset.
-- The `resource_link` uses **lazy evaluation**: only query parameters are cached at tool-call time; the full query executes on the first `resources/read` request.
-- Cache backend: Keyv with `mcp-qr` namespace (in-memory by default, `CACHE_URI` for Redis/Valkey).
+- The `resource_link` uses **lazy evaluation**: only query parameters are stored at tool-call time; the full query executes on the first `resources/read` request.
 - Cache TTL: 1 hour.
 - The `structuredContent` table always includes `sql` and `execution_time_ms` metadata.
