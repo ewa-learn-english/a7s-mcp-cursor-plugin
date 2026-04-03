@@ -493,3 +493,10 @@ The `preview_query` and `explore_metric` MCP tools return query results through 
 - The `resource_link` uses **lazy evaluation**: only query parameters are stored at tool-call time; the full query executes on the first `resources/read` request.
 - Cache TTL: 1 hour.
 - The `structuredContent` table always includes `sql` and `execution_time_ms` metadata.
+
+### explore_metric segmentation and filters
+
+`explore_metric` supports multi-dimension segmentation and dimension-based filters:
+
+- **`segment_by`** — pass a single string or an array of strings to group by one or more dimensions (e.g. `["data_source", "plan_duration"]`). Single string produces an `AS segment` column; array produces `AS segment_1`, `AS segment_2`, etc.
+- **`filters`** — an array of `{ dimension, operator, values }` objects to narrow results without grouping. Operators: `eq`, `neq`, `in`, `not_in`.

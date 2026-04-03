@@ -42,7 +42,7 @@ Follow this sequence strictly. Never skip steps.
 
 1. Call `preview_query` to sample data and verify columns
 2. Call `get_column_stats` to understand value distributions before building filters
-3. Call `explore_metric` for semantic metrics to see their SQL and dimensions
+3. Call `explore_metric` for semantic metrics — supports multi-dimension segmentation (pass array to `segment_by`) and dimension-based `filters`
 4. Pay attention to `column_types` in responses — use only listed column names
 5. Large results (>30 rows) are truncated. Full data is available via `skipper://query-results/{id}` resource link
 

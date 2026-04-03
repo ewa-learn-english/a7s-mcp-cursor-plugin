@@ -21,7 +21,7 @@ Cursor IDE plugin for [A7S Skipper](https://bi.e2w2a.pro) — a BI platform for 
 
 Once connected, the AI agent has access to:
 
-**Semantic Layer** — `list_metrics`, `search_catalog`, `explore_metric`
+**Semantic Layer** — `list_metrics`, `search_catalog`, `explore_metric` (multi-dimension `segment_by` + `filters`)
 
 **Data Exploration** — `preview_query`, `get_column_stats`, `validate_sql`
 
