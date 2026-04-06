@@ -1,12 +1,12 @@
 ---
-description: Markdown widget — inline SQL, Handlebars templates, styling
+description: Markdown widget — inline SQL, template expressions, styling
 globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
 # Markdown Widget
 
-The `markdown` widget renders dynamic text using Handlebars templates populated with data from an inline SQL query.
+The `markdown` widget renders dynamic text using `{{mustache}}` template expressions populated with data from an inline SQL query. The engine is eval-free (no `new Function`, CSP-safe).
 
 ## Basic structure
 
@@ -19,7 +19,7 @@ The `markdown` widget renders dynamic text using Handlebars templates populated 
     sql: |                              # Inline SQL (runs in DuckDB)
       SELECT SUM(costs) AS total_costs, SUM(revenue_net) AS total_revenue
       FROM {{source:total_by_ad}}
-  template: |                           # Handlebars template
+  template: |                           # Template (mustache-like syntax)
     ## Total by Ad
     Revenue: **{{currency_short total_revenue}}**
     Costs: **{{currency_short total_costs}}**
@@ -56,7 +56,7 @@ datasource:
 
 The query result is a single row. Each column becomes a template variable.
 
-## Handlebars template
+## Template syntax
 
 ### Basic variables
 

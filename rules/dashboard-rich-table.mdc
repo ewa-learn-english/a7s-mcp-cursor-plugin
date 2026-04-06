@@ -353,7 +353,7 @@ totals:
 
 ## Selectable rows
 
-Enable row selection with `selectable`. The selected row data is stored in a global selection store and can be consumed by other widgets via `${selection.*}` SQL templates or Handlebars `{{selection.*}}`.
+Enable row selection with `selectable`. The selected row data is stored in a global selection store and can be consumed by other widgets via `${selection.*}` SQL templates or `{{selection.*}}` template expressions.
 
 ```yaml
 # Simple: single-select, click to highlight

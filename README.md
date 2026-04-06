@@ -50,7 +50,7 @@ The plugin includes 8 rules covering every aspect of dashboard YAML:
 - **dashboard-rich-table** — Columns, grouping, pivot, filtering, conditional formatting
 - **dashboard-filters** — Filter types, sources, hierarchy, URL serialization
 - **dashboard-mappings** — Value mapping dictionaries
-- **dashboard-markdown** — Dynamic text widgets with Handlebars templates
+- **dashboard-markdown** — Dynamic text widgets with template expressions
 
 ## License
 
