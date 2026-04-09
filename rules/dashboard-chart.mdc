@@ -4,681 +4,446 @@ globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
-# Chart Widget
-
-The `chart` widget renders ECharts-based visualizations with optional presets for common patterns.
-
-## Design-system conventions
-
-- Use canonical chart palettes: `default`, `ocean`, `sunset`.
-- Prefer named design-system colors or palette colors before introducing raw hex values.
-- Treat semantic status colors (`success`, `warning`, `destructive`, etc.) as meaning-bearing accents, not a substitute for a full chart palette.
-- If MCP resources are available, inspect `skipper://design-system` and `skipper://design-system/palettes` first.
-
-## Basic structure
-
-```yaml
-- id: my_chart
-  type: chart
-  col_span: 12
-  datasource: web5_costs               # Key from datasources or projection
-  # OR inline SQL (auto-creates a type: view datasource as {widget.id}__view):
-  # datasource:
-  #   sql: |
-  #     SELECT date, SUM(costs) as costs FROM {{source:web5_costs}} GROUP BY date
-  title: "Web5 Costs"                   # Optional. Widget header title
-  chart_title: "Revenue trend"          # Optional. ECharts canvas title (inside chart area)
-  preset: trend                         # Optional. Preset layout
-  chart_type: bar                       # Optional. Override chart type
-  sort: value_desc                      # Optional. Sort order for X-axis categories
-  drill_down: true                      # Optional. Enable drill-down (boolean or object)
-  # Or explicit hierarchy:
-  # drill_down:
-  #   columns: [year, month, day]        # Ordered coarsest → finest (min 2)
-  #   default: month                     # Initial level (optional, defaults to finest)
-  #   projections:                        # Optional. Per-level projection overrides
-  #     month: roi_monthly               # Projection key for month-level aggregation
-  #     year: roi_yearly                 # Projection key for year-level aggregation
-  y_inverse: false                      # Optional. Flip Y-axis (0 at top)
-  legend_position: bottom               # Optional. bottom | left | right
-  reference_lines: []                   # Optional. Horizontal/vertical marker lines
-  series: []                            # Optional. Series configuration
-  tracks: []                            # Optional. Multi-track panels
-  echarts_options: {}                   # Optional. Raw ECharts overrides / full config
-```
-
-## Presets
-
-Presets provide pre-configured layouts for common chart patterns:
-
-| Preset | Best for | Default behavior |
-|--------|----------|------------------|
-| `trend` | Time series | Line chart, date x-axis, auto-detects time column |
-| `comparison` | Year-over-year | Groups by year/period, overlays for comparison |
-| `breakdown` | Category splits | Stacked bars or grouped bars by category |
-| `loss_analysis` | Profit/loss | Horizontal bar, negative values go left |
-| `cohort` | Cohort curves | Multi-line, one per cohort group |
-| `multi_track` | Stacked panels | Each series → separate panel, shared X-axis |
-
-### Trend chart
-
-```yaml
-- id: crm-revenue
-  type: chart
-  datasource: crm_activity_revenue
-  preset: trend
-  title: "CRM Activity Revenue"
-  series:
-    - metric: revenue_net
-      type: line
-    - metric: all_revenue
-      type: line
-      label: "Total"
-      color: neutral
-```
-
-### Comparison chart (YoY)
-
-```yaml
-- id: revenue-yoy
-  type: chart
-  datasource: revenue_metrics_yoy
-  preset: comparison
-  drill_down:
-    columns: [year, month, day]
-    default: month
-    projections:                          # For ratio metrics only
-      month: roi_monthly                  # Re-derives ratio at month level
-      year: roi_yearly                    # Re-derives ratio at year level
-  title: "Revenue metrics YoY"
-  series:
-    - metric: costs
-      type: bar
-      y_axis: left
-    - metric: annual_revenue
-      type: line
-      color: warning
-      y_axis: right
-```
-
-### Loss analysis
-
-```yaml
-- id: revenue-losses
-  type: chart
-  datasource: revenue_losses_by_language
-  preset: loss_analysis
-  title: "Revenue Losses by Language"
-  series:
-    - metric: profit
-```
-
-### Cohort chart
-
-```yaml
-- id: cohort-cumulative
-  type: chart
-  datasource: cohort_grow
-  preset: cohort
-  title: "Cohort grow by days"
-  series:
-    - metric: cumulative_revenue
-      type: line
-```
-
-## Sorting
-
-Control X-axis category order. Default: `category_asc` (alphabetical/numeric).
-
-| Value | Description |
-|-------|-------------|
-| `value_desc` | Sort by metric value, largest first |
-| `value_asc` | Sort by metric value, smallest first |
-| `category_asc` | Sort by category name ascending (default) |
-| `category_desc` | Sort by category name descending |
-| `none` | Preserve data source order (no sort) |
-
-```yaml
-- id: revenue-by-plan
-  type: chart
-  chart_type: bar
-  sort: value_desc
-  datasource: revenue_by_plan
-  title: "Revenue by Plan Duration"
-```
-
-For grouped charts, `value_desc`/`value_asc` sorts by the sum across all groups per category.
-
-## Chart types
-
-Override or specify chart type explicitly:
-
-| Type | Description |
-|------|-------------|
-| `line` | Line chart |
-| `bar` | Bar chart (vertical) |
-| `combo` | Mixed bar + line on same axes |
-
-```yaml
-- id: bar-chart
-  type: chart
-  datasource: web5_costs
-  chart_type: bar
-  title: "Web5 costs"
-```
-
-## Series configuration
-
-Each series maps a data column to a visual element:
-
-```yaml
-series:
-  - metric: costs                       # Required. Column name from data source
-    type: line                          # Optional. line | bar | scatter (default: line)
-    label: "Costs"                      # Optional. Legend label
-    color: warning                      # Optional. Color name or hex
-    y_axis: left                        # Optional. left | right (for dual-axis)
-    line_width: 3                       # Optional. Line thickness in px (default: 2)
-    color_by_value:                     # Optional. Color bars by value sign
-      positive: success                 # Color for value >= 0
-      negative: destructive             # Color for value < 0
-    band:                               # Optional. Confidence interval band
-      lower: ci_lower                   # Column with lower bound values
-      upper: ci_upper                   # Column with upper bound values
-      label: "CI band"                  # Optional. Legend label for the band
-    symbol: circle                      # Optional. Marker symbol (scatter)
-    symbol_size: 8                      # Optional. Fixed marker size (scatter)
-    symbol_size:                        # OR dynamic size from data column
-      column: weight                    # Numeric column driving marker size
-      min: 6                            # Min marker size in px
-      max: 20                           # Max marker size in px
-```
-
-### Color values
-
-Use design-system color names or hex values:
-
-- Named colors: `primary`, `secondary`, `warning`, `neutral`, `destructive`, `success`, `danger`
-- Hex: `"#3b82f6"`
-- Prefer palette-backed colors for multi-series charts; use raw hex only when a named token or canonical palette is not enough.
-
-### `color_by_value`
-
-Conditional bar coloring by value sign. Works in both standard and multi-track charts:
-
-```yaml
-series:
-  - metric: profit
-    type: bar
-    color_by_value:
-      positive: success                 # green for positive values
-      negative: destructive             # red for negative values
-```
-
-## Inverted Y-axis
-
-Flip the Y-axis so 0 is at the top and values decrease downward:
-
-```yaml
-- id: experiment-dau
-  type: chart
-  datasource: experiment_data
-  y_inverse: true
-  title: "DAU uplift"
-```
-
-Also available per-track in multi-track charts via `y_inverse: true` on the track.
-
-## Chart title (ECharts canvas)
-
-The `title` property sets the widget header (React component). To also show a title **inside** the ECharts canvas area, use `chart_title`:
-
-```yaml
-- id: experiment-dau
-  type: chart
-  datasource: experiment_data
-  title: "Experiment Data"              # Widget header
-  chart_title: "Chat started days DAU"  # Inside chart canvas
-```
-
-If `chart_title` is omitted, no title renders inside the chart. The two titles are independent.
-
-## Legend position
-
-Control where the legend appears:
-
-```yaml
-- id: experiment-dau
-  type: chart
-  datasource: experiment_data
-  legend_position: left                 # bottom (default) | left | right
-```
-
-`left` / `right` renders a vertical legend with increased grid margin.
-
-## Reference lines
-
-Add horizontal or vertical reference lines (markLines) to any chart:
-
-```yaml
-- id: experiment-chart
-  type: chart
-  datasource: experiment_data
-  reference_lines:
-    - axis: y                           # Horizontal line
-      value: 0
-      label: "Zero"
-      color: "#00E5FF"
-      style: solid                      # solid | dashed | dotted
-    - axis: x                           # Vertical line
-      value: "22 Jan"
-      label: "Experiment start"
-      label_position: bottom              # top | center | bottom (default: top for x, bottom for y)
-      color: "#9CA3AF"
-      style: dashed
-```
-
-## Confidence interval band
-
-Render a shaded area between lower and upper bound columns around a line series:
-
-```yaml
-series:
-  - metric: test
-    type: line
-    color: "#FF00FF"
-    band:
-      lower: ci_lower                   # Column with lower bound
-      upper: ci_upper                   # Column with upper bound
-      label: "test – uplift CI"         # Legend label for band
-```
-
-The band is rendered as a semi-transparent area behind the line.
-
-## Scatter series
-
-Scatter markers for annotations, flags, or discrete data points:
-
-```yaml
-series:
-  - metric: srm_flag
-    type: scatter
-    label: "SRM markers"
-    symbol: circle                      # circle | diamond | emptyCircle | ...
-    symbol_size: 10                     # Fixed size in px
-    color: "#C084FC"
-```
-
-### Dynamic marker size
-
-Size markers based on a data column value:
-
-```yaml
-series:
-  - metric: srm_flag
-    type: scatter
-    label: "SRM markers"
-    symbol_size:
-      column: srm_weight               # Numeric column driving size
-      min: 8                            # Smallest marker (px)
-      max: 16                           # Largest marker (px)
-    color: "#C084FC"
-```
-
-Values are linearly interpolated from the column's data range to `[min, max]` pixel range.
-
-## Multi-track charts
-
-Multiple vertically stacked chart panels sharing the same X-axis. Each panel ("track") has its own Y-axis, title, and series. Hover/crosshair is synchronized across all tracks.
-
-### Explicit tracks (full control)
-
-```yaml
-- id: margin-spend
-  type: chart
-  col_span: 12
-  row_span: 2
-  datasource: margin_spend_data
-  title: "Margin and spend by day"
-  tracks:
-    - title: "Total margin"             # Y-axis label
-      height_ratio: 1                   # Relative height (default 1)
+<rule>
+<meta>
+  This rule covers the `chart` widget for A7S Skipper dashboards: presets, series types, tooltips, multi-track panels, drill-down, ECharts passthrough, and data interpolation.
+  Activate when creating or editing chart widgets in dashboard YAML files.
+</meta>
+
+<concepts>
+  <rendering_engine>ECharts (via echarts-for-react)</rendering_engine>
+  <design_system>
+    Use canonical chart palettes: `default`, `ocean`, `sunset`.
+    Prefer named design-system colors over custom hex.
+    Semantic colors (success/warning/error) are for status, not chart decoration.
+    If MCP available, inspect `skipper://design-system` and `skipper://design-system/palettes`.
+  </design_system>
+</concepts>
+
+<schema>
+  <chart_widget>
+    ```yaml
+    - id: my_chart
+      type: chart
+      col_span: 12
+      datasource: web5_costs               # Key, projection name, or inline { sql }
+      title: "Web5 Costs"                   # Optional. Widget header title
+      chart_title: "Revenue trend"          # Optional. Inside ECharts canvas
+      preset: trend                         # Optional. Preset layout
+      chart_type: bar                       # Optional. line | bar | combo
+      sort: value_desc                      # Optional. X-axis sort
+      drill_down: true                      # Optional. Boolean or object
+      y_inverse: false                      # Optional. Flip Y-axis
+      legend_position: bottom               # Optional. bottom | left | right
+      reference_lines: []                   # Optional. Marker lines
+      series: []                            # Optional. Series config
+      tracks: []                            # Optional. Multi-track panels
+      tooltip: {}                           # Optional. Tooltip config
+      legend: {}                            # Optional. Legend template
+      echarts_options: {}                   # Optional. Raw ECharts overrides
+    ```
+  </chart_widget>
+
+  <series_config>
+    ```yaml
+    series:
+      - metric: costs                       # Required. Column name
+        type: line                          # Optional. line | bar | scatter
+        label: "Costs"                      # Optional. Legend label
+        color: warning                      # Optional. Named or hex
+        format: currency                    # Optional. currency | percent | number
+        y_axis: left                        # Optional. left | right (dual axis)
+        line_width: 3                       # Optional. Line thickness px
+        color_by_value:                     # Optional. Color by sign
+          positive: success
+          negative: destructive
+        band:                               # Optional. CI band
+          lower: ci_lower
+          upper: ci_upper
+          label: "CI band"
+        symbol: circle                      # Optional. Scatter marker shape
+        symbol_size: 8                      # Optional. Fixed px, or:
+        symbol_size:                        #   Dynamic from data column
+          column: weight
+          min: 6
+          max: 20
+    ```
+  </series_config>
+</schema>
+
+<options>
+  <presets>
+    | Preset | Best for | Default behavior |
+    |---|---|---|
+    | `trend` | Time series | Line chart, date x-axis, auto-detects time column |
+    | `comparison` | Year-over-year | Groups by year/period, overlays for comparison |
+    | `breakdown` | Category splits | Stacked/grouped bars by category |
+    | `loss_analysis` | Profit/loss | Horizontal bar, negative values go left |
+    | `cohort` | Cohort curves | Multi-line, one per cohort group |
+    | `multi_track` | Stacked panels | Each series → separate panel, shared X-axis |
+  </presets>
+
+  <chart_types>
+    | Type | Description |
+    |---|---|
+    | `line` | Line chart |
+    | `bar` | Bar chart (vertical) |
+    | `combo` | Mixed bar + line on same axes |
+  </chart_types>
+
+  <sort_modes>
+    | Value | Description |
+    |---|---|
+    | `value_desc` | By metric value, largest first |
+    | `value_asc` | By metric value, smallest first |
+    | `category_asc` | By category name ascending (default) |
+    | `category_desc` | By category name descending |
+    | `none` | Preserve data source order |
+
+    For grouped charts, `value_desc`/`value_asc` sorts by sum across all groups.
+  </sort_modes>
+
+  <named_colors>
+    `primary`, `secondary`, `warning`, `neutral`, `destructive`, `success`, `danger`
+    Plus hex values: `"#3b82f6"`
+    Prefer palette colors for multi-series; use hex only when named tokens insufficient.
+  </named_colors>
+
+  <format_priority>
+    `series[].format` > `tooltip.format_overrides` > `tooltip.value_format` > auto-detection from column name
+  </format_priority>
+
+  <data_interpolation>
+    Markers in `echarts_options`, `reference_lines`, `chart_title`, `series[].label`, `tracks[].title`:
+
+    | Marker | Resolves to | Example |
+    |---|---|---|
+    | `$column:name` | Array of all values | `["20 Jan", "21 Jan"]` |
+    | `$value:name:agg` | Single aggregated value | `42.5` |
+    | `$rows` | Full row array | `[{date:"20 Jan", val:1}]` |
+
+    Aggregations: `first`, `last`, `min`, `max`, `sum`, `avg`.
+    Pipe chains: `$value:revenue:sum|round:0|currency`
+    Available pipes: `round:N`, `floor`, `ceil`, `abs`, `sign`, `fixed:N`, `currency`, `percent`, `number`
+  </data_interpolation>
+</options>
+
+<examples>
+  <trend_chart>
+    ```yaml
+    - id: crm-revenue
+      type: chart
+      datasource: crm_activity_revenue
+      preset: trend
+      title: "CRM Activity Revenue"
+      series:
+        - metric: revenue_net
+          type: line
+        - metric: all_revenue
+          type: line
+          label: "Total"
+          color: neutral
+    ```
+  </trend_chart>
+
+  <comparison_with_drill_down>
+    ```yaml
+    - id: revenue-yoy
+      type: chart
+      datasource: revenue_metrics_yoy
+      preset: comparison
+      drill_down:
+        columns: [year, month, day]         # Coarsest → finest (min 2)
+        default: month                      # Initial level
+        projections:                        # Per-level re-aggregation for ratios
+          month: roi_monthly
+          year: roi_yearly
+      title: "Revenue metrics YoY"
+      series:
+        - metric: costs
+          type: bar
+          y_axis: left
+        - metric: annual_revenue
+          type: line
+          color: warning
+          y_axis: right
+    ```
+  </comparison_with_drill_down>
+
+  <loss_analysis>
+    ```yaml
+    - id: revenue-losses
+      type: chart
+      datasource: revenue_losses_by_language
+      preset: loss_analysis
+      title: "Revenue Losses by Language"
+      series:
+        - metric: profit
+    ```
+  </loss_analysis>
+
+  <multi_track_explicit>
+    ```yaml
+    - id: margin-spend
+      type: chart
+      col_span: 12
+      row_span: 2
+      datasource: margin_spend_data
+      title: "Margin and spend by day"
+      tracks:
+        - title: "Total margin"
+          height_ratio: 1
+          series:
+            - metric: margin
+              type: bar
+              color_by_value: { positive: success, negative: destructive }
+        - title: "Marketing Costs"
+          height_ratio: 1
+          series:
+            - metric: marketing_costs
+              type: line
+              color: primary
+    ```
+  </multi_track_explicit>
+
+  <multi_track_preset>
+    Each `series` auto-becomes a track; `label` becomes track title:
+    ```yaml
+    - id: margin-spend-easy
+      type: chart
+      col_span: 12
+      row_span: 2
+      datasource: margin_spend_data
+      preset: multi_track
+      title: "Margin and spend by day"
       series:
         - metric: margin
           type: bar
-          color_by_value:
-            positive: success
-            negative: destructive
-    - title: "Marketing Costs"
-      height_ratio: 1
-      series:
+          label: "Total margin"
+          color_by_value: { positive: success, negative: destructive }
         - metric: marketing_costs
           type: line
+          label: "Marketing Costs"
           color: primary
-```
+    ```
+  </multi_track_preset>
 
-### `preset: multi_track` (shorthand)
-
-Each `series` element auto-becomes a separate track. `label` becomes track title:
-
-```yaml
-- id: margin-spend-easy
-  type: chart
-  col_span: 12
-  row_span: 2
-  datasource: margin_spend_data
-  preset: multi_track
-  title: "Margin and spend by day"
-  series:
-    - metric: margin
-      type: bar
-      label: "Total margin"
-      color_by_value:
-        positive: success
-        negative: destructive
-    - metric: marketing_costs
-      type: line
-      label: "Marketing Costs"
-      color: primary
-```
-
-### Track configuration
-
-```yaml
-tracks:
-  - title: string                       # Optional. Y-axis label for this panel
-    height_ratio: number                # Optional. Relative height (default 1)
-    y_inverse: boolean                  # Optional. Invert Y-axis for this track
-    soft_min: boolean                   # Optional. Soft-clamp Y minimum to 0
-    split_area: boolean                 # Optional. Alternating horizontal bands
-    area_fill: boolean                  # Optional. Fill area under line series
-    zero_line: boolean                  # Optional. Show a dashed zero reference line
-    label_every: number                 # Optional. Show value labels every N points
-    background_fill: string             # Optional. Track background color (hex)
-    borders:                            # Optional. Track border lines
-      enabled: boolean
-      top: boolean
-      bottom: boolean
-      left: boolean
-      right: boolean
-    axis_line:                          # Optional. Y-axis line style
-      show: boolean
-      color: string
-      width: number
-      type: solid | dashed | dotted
-    series:                             # Required. Series in this panel
-      - metric: string
-        type: line | bar | scatter
-        color: string
-        line_width: number
-        color_by_value: { positive, negative }
-        band: { lower, upper, label }
-        symbol_size: number | { column, min, max }
-```
-
-## Horizontal layout
-
-Charts work well in horizontal section layout for side-by-side display:
-
-```yaml
-sections:
-  - id: side-by-side
-    title: Side by Side Charts
-    layout: horizontal
-    columns: 2
-    widgets:
-      - id: chart-left
-        type: chart
-        datasource: source_a
-        preset: loss_analysis
-        series:
-          - metric: profit
-      - id: chart-right
-        type: chart
-        datasource: source_b
-        preset: trend
-        series:
-          - metric: revenue_net
-            type: line
-```
-
-## Full experiment chart example
-
-Combines reference lines, CI band, scatter markers with dynamic size, legend position, and line width:
-
-```yaml
-- id: experiment-dau
-  type: chart
-  col_span: 12
-  datasource: experiment_data
-  title: "Experiment Data"
-  chart_title: "Chat started days DAU"
-  legend_position: left
-  reference_lines:
-    - axis: y
-      value: 0
-      color: "#00E5FF"
-      style: solid
-    - axis: x
-      value: "22 Jan"
-      label: "Experiment start"
-      label_position: bottom
-      color: "#9CA3AF"
-      style: dashed
-  series:
-    - metric: test
-      type: line
-      label: "test"
-      color: "#FF00FF"
-      line_width: 3
-      band:
-        lower: ci_lower
-        upper: ci_upper
-        label: "test – uplift CI"
-    - metric: control
-      type: line
-      label: "control"
-      color: "#00E5FF"
-      line_width: 2
-    - metric: srm_flag
-      type: scatter
-      label: "SRM markers"
-      symbol: circle
-      symbol_size:
-        column: srm_weight
-        min: 8
-        max: 18
-      color: "#C084FC"
-```
-
-## Raw ECharts options
-
-Use `echarts_options` to pass arbitrary ECharts configuration. Two modes:
-
-### Raw-only mode
-
-When `echarts_options` is set **without** `series`, `tracks`, or `preset`, the adapter is bypassed entirely and the interpolated object is passed to ECharts as-is.
-
-```yaml
-- id: custom-radar
-  type: chart
-  datasource: radar_data
-  echarts_options:
-    radar:
-      indicator:
-        - { name: "Speed", max: 100 }
-        - { name: "Power", max: 100 }
+  <scatter_dynamic_size>
+    ```yaml
     series:
-      - type: radar
-        data:
-          - value: "$column:scores"
-```
+      - metric: srm_flag
+        type: scatter
+        label: "SRM markers"
+        symbol: circle
+        symbol_size:
+          column: srm_weight
+          min: 8
+          max: 16
+        color: "#C084FC"
+    ```
+  </scatter_dynamic_size>
 
-### Override mode
+  <confidence_band>
+    ```yaml
+    series:
+      - metric: test
+        type: line
+        color: "#FF00FF"
+        band:
+          lower: ci_lower
+          upper: ci_upper
+          label: "test – uplift CI"
+    ```
+  </confidence_band>
 
-When `echarts_options` is combined with normal config (`series`, `preset`, `tracks`), the adapter builds the chart normally and then deep-merges `echarts_options` on top. Use this to tweak grid, tooltip, or other options without rewriting the whole chart.
+  <reference_lines>
+    ```yaml
+    reference_lines:
+      - axis: y
+        value: 0
+        label: "Zero"
+        color: "#00E5FF"
+        style: solid
+      - axis: x
+        value: "$value:experiment_start_date:first"
+        label: "Experiment start"
+        label_position: bottom
+        color: "#9CA3AF"
+        style: dashed
+    ```
+  </reference_lines>
 
-```yaml
-- id: tweaked-chart
-  type: chart
-  datasource: sales_data
-  series:
-    - metric: revenue
-  echarts_options:
-    grid:
-      left: 120
+  <tooltip_simple>
+    ```yaml
     tooltip:
-      trigger: item
-```
+      show_percent: true
+      show_change: true
+      show_total: true
+      value_format: currency
+      format_overrides:
+        revenue: currency
+        rate: percent
+    ```
+  </tooltip_simple>
 
-### Data interpolation markers
+  <tooltip_template>
+    ```yaml
+    tooltip:
+      template: |
+        <b>{x}</b>
+        {#series}
+        {marker} {name}: <b>{value|round:0|currency}</b> ({percent|round:1}%)
+        {/series}
+        <hr/>
+        Total: <b>{total|round:0|currency}</b>
+    ```
 
-Markers inside `echarts_options` string values are replaced with actual datasource data:
+    Tokens: `{x}`, `{#series}...{/series}`, `{marker}`, `{name}`, `{value}`, `{percent}`, `{change}`, `{change_pct}`, `{total}`
+    Pipes: `round:N`, `floor`, `ceil`, `abs`, `sign`, `fixed:N`, `currency`, `percent`, `number`
+    When `template` is set, simple options are ignored.
+  </tooltip_template>
 
-| Marker | Resolves to | Example |
-|---|---|---|
-| `$column:name` | Array of all values from column `name` | `["20 Jan", "21 Jan"]` |
-| `$value:name:agg` | Single aggregated value (`first`, `last`, `min`, `max`, `sum`, `avg`) | `42.5` |
-| `$rows` | Full row array (for `dataset.source`) | `[{date:"20 Jan", val:1}]` |
+  <legend_template>
+    ```yaml
+    legend:
+      template: "{name}: {last|currency}"
+    ```
+    Tokens: `{name}`, `{first}`, `{last}`, `{min}`, `{max}`, `{sum}`, `{avg}`. Pipes chainable.
+  </legend_template>
 
-Interpolation also works in `reference_lines` values:
+  <title_interpolation>
+    ```yaml
+    - id: revenue-trend
+      type: chart
+      datasource: daily_revenue
+      preset: trend
+      chart_title: "Revenue — total $value:revenue:sum|round:0|currency"
+      series:
+        - metric: revenue
+          label: "Revenue ($value:revenue:last|round:0|currency)"
+    ```
+  </title_interpolation>
 
-```yaml
-reference_lines:
-  - axis: x
-    value: "$value:experiment_start_date:first"
-    label: "Experiment start"
-```
+  <echarts_raw>
+    When `echarts_options` is set WITHOUT `series`/`tracks`/`preset`, the adapter is bypassed:
+    ```yaml
+    - id: custom-radar
+      type: chart
+      datasource: radar_data
+      echarts_options:
+        radar:
+          indicator:
+            - { name: "Speed", max: 100 }
+            - { name: "Power", max: 100 }
+        series:
+          - type: radar
+            data:
+              - value: "$column:scores"
+    ```
+  </echarts_raw>
 
-### Caveats
+  <echarts_override>
+    When combined with normal config, deep-merges on top:
+    ```yaml
+    - id: tweaked-chart
+      type: chart
+      datasource: sales_data
+      series:
+        - metric: revenue
+      echarts_options:
+        grid: { left: 120 }
+        tooltip: { trigger: item }
+    ```
+  </echarts_override>
+</examples>
 
-- `datasource` is still required — it provides the data for interpolation
-- Raw mode bypasses all adapter formatting (axis detection, color palette, formatters, presets)
-- Override mode deep-merges: objects are merged recursively, arrays are replaced
+<layout>
+  <side_by_side_charts>
+    Use section `layout: horizontal` for side-by-side charts:
 
-## Series format
+    ```yaml
+    sections:
+      - id: side-by-side
+        title: Side by Side Charts
+        layout: horizontal
+        columns: 2
+        widgets:
+          - id: chart-left
+            type: chart
+            datasource: source_a
+            preset: loss_analysis
+            series: [{ metric: profit }]
+          - id: chart-right
+            type: chart
+            datasource: source_b
+            preset: trend
+            series: [{ metric: revenue_net, type: line }]
+    ```
+  </side_by_side_charts>
 
-Explicitly set the number format for a series, overriding the auto-detection based on column names:
+  <multi_track_height>
+    Use `row_span: 2` or higher for multi-track charts (300px per track, min 400px total).
+    Height formula: `row_span * 250` (multi-track) or `row_span * 400` (standard).
+  </multi_track_height>
+</layout>
 
-```yaml
-series:
-  - metric: conversion_rate
-    format: percent                    # currency | percent | number
-  - metric: revenue
-    format: currency
-  - metric: dau
-    format: number
-```
+<patterns>
+  <track_config>
+    ```yaml
+    tracks:
+      - title: string                       # Y-axis label
+        height_ratio: number                # Relative height (default 1)
+        y_inverse: boolean                  # Invert Y-axis for this track
+        soft_min: boolean                   # Soft-clamp Y minimum to 0
+        split_area: boolean                 # Alternating horizontal bands
+        area_fill: boolean                  # Fill area under lines
+        zero_line: boolean                  # Dashed zero reference line
+        label_every: number                 # Show labels every N points
+        background_fill: string             # Track background color (hex)
+        borders:                            # Per-side borders
+          enabled: boolean
+          top: boolean
+          bottom: boolean
+          left: boolean
+          right: boolean
+        axis_line:                          # Y-axis line style
+          show: boolean
+          color: string
+          width: number
+          type: solid | dashed | dotted
+        series: [...]                       # Required. Series in this panel
+    ```
+  </track_config>
 
-Format priority: `series[].format` > `tooltip.format_overrides` > `tooltip.value_format` > auto-detection from column name.
+  <drill_down>
+    - `drill_down: true` — auto-detects year/month/day hierarchy
+    - `drill_down: { columns: [...], default: ..., projections: {} }` — explicit hierarchy
+    - `columns` ordered coarsest → finest (min 2). Active level = `GROUP BY columns.slice(0, indexOf(level) + 1)`
+    - `default` is initial aggregation level (defaults to finest)
+    - `projections` maps levels to projection keys — use for ratio metrics that can't be summed
+    - Supports non-temporal hierarchies: `{ columns: [region, city] }`
+    - **Incompatible with `tracks`** (tracks takes priority)
+  </drill_down>
+</patterns>
 
-## Data interpolation in titles and labels
+<rules>
+  <hard_constraints>
+    - `datasource` is required — provides data for interpolation
+    - `datasource` accepts string key, projection name, or inline `{ sql }`
+    - When using `preset`, chart auto-configures axes, legends, tooltips
+    - `chart_type` overrides preset default type
+    - If no `series`, chart auto-detects numeric columns
+    - `tracks` takes priority over `series` if both specified
+    - `tracks` incompatible with `drill_down`
+    - `title` = widget header; `chart_title` = inside ECharts canvas
+    - `band` columns and `symbol_size.column` are excluded from auto-detected metrics
+    - Raw echarts mode bypasses all adapter logic; override mode deep-merges (objects merged, arrays replaced)
+  </hard_constraints>
+</rules>
 
-Use `$value:col:agg` and `$column:col` markers in `chart_title`, `series[].label`, and `tracks[].title`:
-
-```yaml
-- id: revenue-trend
-  type: chart
-  datasource: daily_revenue
-  preset: trend
-  chart_title: "Revenue — total $value:revenue:sum|round:0|currency"
-  series:
-    - metric: revenue
-      label: "Revenue ($value:revenue:last|round:0|currency)"
-```
-
-Available aggregations: `first`, `last`, `min`, `max`, `sum`, `avg`.
-
-Chained pipes after aggregation: `$value:col:agg|pipe1|pipe2`. Same pipes as tooltip/legend templates: `round:N`, `floor`, `ceil`, `abs`, `sign`, `fixed:N`, `currency`, `percent`, `number`.
-
-## Tooltip configuration
-
-### Simple mode (declarative)
-
-```yaml
-tooltip:
-  show_percent: true                   # Show % of total per series
-  show_change: true                    # Show delta vs previous data point
-  show_total: true                     # Show total row at bottom
-  value_format: currency               # Override format for all series
-  format_overrides:                    # Override format per metric
-    revenue: currency
-    rate: percent
-```
-
-### Template mode (advanced)
-
-```yaml
-tooltip:
-  template: |
-    <b>{x}</b>
-    {#series}
-    {marker} {name}: <b>{value|round:0|currency}</b> ({percent|round:1}%)
-    {/series}
-    <hr/>
-    Total: <b>{total|round:0|currency}</b>
-```
-
-Template tokens:
-
-| Token | Description |
-|-------|-------------|
-| `{x}` | X-axis value |
-| `{#series}...{/series}` | Loop over series at current point |
-| `{marker}` | ECharts colored dot |
-| `{name}` | Series display name |
-| `{value}` or `{value\|pipe}` | Series value, optionally piped |
-| `{percent}` | Percentage of total |
-| `{change}` or `{change\|pipe}` | Delta from previous point |
-| `{change_pct}` | Delta as percentage |
-| `{total}` or `{total\|pipe}` | Sum of all series |
-
-Pipes can be chained: `{value|round:0|currency}`, `{change|abs|sign}`.
-
-Available pipes:
-
-| Pipe | Description |
-|------|-------------|
-| `round:N` | Round to N decimal places |
-| `floor` | Round down |
-| `ceil` | Round up |
-| `abs` | Absolute value |
-| `sign` | Prefix +/− sign |
-| `fixed:N` | Exact N decimal places (string output) |
-| `currency` | Format as currency ($1.2K, $3M) |
-| `percent` | Format as percent (×100, append %) |
-| `number` | Format as abbreviated number (1.2K, 3M) |
-
-When `template` is set, simple options are ignored.
-
-## Legend template
-
-Display aggregated values next to series names in the legend:
-
-```yaml
-legend:
-  template: "{name}: {last|currency}"
-```
-
-Available tokens: `{name}`, `{first}`, `{last}`, `{min}`, `{max}`, `{sum}`, `{avg}`. Pipes can be chained: `{sum|round:0|currency}`, `{avg|round:1}`. Same pipe set as tooltip templates.
-
-## Rules
-
-- `datasource` accepts a string key (from `datasources` or a projection name) OR an inline `{ sql }` object (auto-registered as `type: view`)
-- When using `preset`, the chart auto-configures axes, legends, and tooltips
-- `drill_down` enables aggregation toggling:
-  - `drill_down: true` — auto-detects year/month/day hierarchy (legacy shorthand, renders Day/Month toggle)
-  - `drill_down: { columns: [...], default: ... }` — explicit hierarchy with arbitrary levels
-  - `columns` ordered from coarsest to finest (min 2). Active level determines `GROUP BY` = `columns.slice(0, indexOf(level) + 1)`
-  - `default` is the initial aggregation level (defaults to finest if omitted)
-  - `projections` maps drill levels to projection keys. Use for ratio metrics (CPA, ROI) that cannot be summed. The projection re-derives ratios from additive components at each level.
-  - Supports non-temporal hierarchies: `{ columns: [region, city] }`
-- `tracks` is incompatible with `drill_down` (tracks takes priority)
-- `chart_type` overrides the default type from the preset
-- If no `series` is provided, the chart auto-detects numeric columns
-- `tracks` takes priority over `series` if both are specified
-- Multi-track height: use `row_span: 2` or higher for multi-track charts (300px per track, min 400px total)
-- `title` is the widget header; `chart_title` is rendered inside the ECharts canvas
-- `band` columns (`lower`, `upper`) and `symbol_size.column` are excluded from auto-detected metrics
-- Scatter series with dynamic `symbol_size` show the weight column value (with %) in tooltips
-- `echarts_options` in raw-only mode bypasses all adapter logic; in override mode it deep-merges on top
+<see_also>
+  - `dashboard-datasources` — datasource reference patterns, projections for drill-down
+  - `dashboard-yaml-structure` — grid layout, section horizontal for side-by-side charts
+  - `dashboard-builder-guide` — chart patterns, conventions
+</see_also>
+</rule>

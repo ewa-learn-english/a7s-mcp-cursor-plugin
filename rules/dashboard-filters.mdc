@@ -4,570 +4,354 @@ globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
-# Filters
+<rule>
+<meta>
+  This rule covers filter definitions for A7S Skipper dashboards: 8 filter types, 6 source types, hierarchy/cascade, URL serialization, and filter pools.
+  Activate when writing `filters:` blocks at dashboard, tab, section, or widget level.
+</meta>
 
-Canonical navigation hierarchy: `root -> dashboard -> tab -> [sections -> widgets]`.
+<concepts>
+  <hierarchy>Root filters → Dashboard filters → Tab filters → Section filters → Widget `inline_filters`</hierarchy>
+  <cascade>Widgets inherit all ancestor filters. Control scope with `filters: { include: [...] }` or `filters: { exclude: [...] }`.</cascade>
+  <rbac_note>Filters shape data inside an already accessible dashboard. They do not grant access.</rbac_note>
+</concepts>
 
-RBAC note: filters shape data inside an already accessible dashboard. They do not grant access and must not be described as an authorization mechanism.
-
-Filters can be defined at dashboard, tab, section, or widget (inline) level. They cascade down: widget inherits section -> tab -> dashboard filters.
-
-## Filter definition
-
-```yaml
-filters:
-  - id: date_range                     # Required. Unique identifier
-    type: date_range                   # Required. See filter types below
-    column: install_date               # Required (nullable). Column this filter targets in SQL
-    label: Date Range                  # Optional in YAML (inferred from id at runtime)
-    placeholder: Select...             # Optional. Override default text shown when no value is set
-    #   Defaults: "Select options" (select), "Select date range" (date_range),
-    #             "Select range" (relative_date), "Search..." (search)
-    icon: Calendar                     # Optional. Lucide icon name
-    required: true                     # Optional. Must have a value
-    clearable: true                    # Optional. Allow clearing value to empty (default: true)
-    #   Applies to: select (single-select), segmented (single-select)
-    #   When cleared, SQL renders as 1=1 (no filter). Opt out with clearable: false
-    searchable: true                   # Optional. Enable search in select filters
-    ui_only: false                     # Optional. If true, filter doesn't affect SQL
-    serializable: true                 # Optional. If true, filter is serialized to URL (see URL serialization below)
-    pool: geo                          # Optional. Named pool — hidden by default, shown via "+ Add filter"
-    source: {}                         # Optional. How to get filter options
-    selection: {}                      # Optional. Selection behavior
-    default: {}                        # Optional. Default value
-    presets: []                        # Optional. Predefined value presets
-    true_label: "Yes"                  # Optional. Boolean only: label for true state (default: "Yes")
-    false_label: "No"                  # Optional. Boolean only: label for false state (default: "No")
-    true_value: 1                      # Optional. Boolean only: SQL literal for true (default: 1)
-    false_value: 0                     # Optional. Boolean only: SQL literal for false (default: 0)
-    allow_none: false                  # Optional. Segmented only: allow deselecting all (default: false)
-    icon_only: false                   # Optional. Segmented only: show only icons, labels as tooltips
-    slider_config: {}                  # Optional. Slider only: { min, max, step?, range?, show_input?, format? }
-```
-
-## Filter types
-
-| Type | UI Component | Value Type |
-| ---- | ------------ | ---------- |
-| `select` | MultiSelect dropdown | `string[]` or `string` |
-| `date_range` | DateRangePicker with presets | `{ start, end, preset? }` |
-| `relative_date` | Select with preset options | `{ preset }` |
-| `number_range` | Min/max inputs | `{ min?, max? }` |
-| `search` | Text input | `string` |
-| `boolean` | Two-state toggle (Yes/No) | `boolean` |
-| `segmented` | Toggle group | `string \| string[]` |
-| `slider` | Range slider (dual/single thumb) | `{ min?, max? }` or `number` |
-
-## Boolean filter
-
-Two-state toggle (Yes/No). Always has a value — `default` is required.
-
-```yaml
-- id: is_organic
-  type: boolean
-  column: is_organic
-  label: Organic
-  default: false
-
-# Custom labels
-- id: is_active
-  type: boolean
-  column: is_active
-  label: Status
-  true_label: Active
-  false_label: Inactive
-  default: true
-
-# Custom SQL values (for non-standard boolean columns)
-- id: status
-  type: boolean
-  column: status
-  label: Status
-  true_value: "'active'"
-  false_value: "'inactive'"
-  default: true
-```
-
-SQL output: `column = 1` or `column = 0` by default. With `true_value`/`false_value`: `column = <true_value>` or `column = <false_value>`.
-
-## Segmented filter
-
-Toggle group with SQL rendering. Supports static options, SQL-loaded options, multi-select, and icon-only mode. Single-select segmented is clearable by default (click the active segment to deselect). Opt out with `clearable: false`. `allow_none: true` also enables deselection (backward compat).
-
-```yaml
-# Single-select (default)
-- id: platform
-  type: segmented
-  column: platform
-  default: ios
-  source:
-    type: static
-    options:
-      - { value: ios, label: iOS, icon: Apple }
-      - { value: android, label: Android, icon: Smartphone }
-
-# Multi-select with deselect
-- id: device
-  type: segmented
-  column: device_type
-  allow_none: true
-  source:
-    type: static
-    options:
-      - { value: phone, label: Phone }
-      - { value: tablet, label: Tablet }
-      - { value: desktop, label: Desktop }
-
-# SQL-loaded options
-- id: country
-  type: segmented
-  column: country
-  source:
-    sql: "SELECT DISTINCT country FROM {{source:main}} ORDER BY country LIMIT 8"
-
-# Icon-only UI toggle
-- id: view_mode
-  type: segmented
-  column: null
-  ui_only: true
-  default: table
-  icon_only: true
-  source:
-    type: static
-    options:
-      - { value: table, label: Table view, icon: Table }
-      - { value: chart, label: Chart view, icon: BarChart }
-```
-
-SQL rendering:
-- Single value: `column = 'value'`
-- Multi-select: `column IN ('a', 'b')`
-- No selection (clearable / allow_none): `1=1`
-- No column: `1=1` (ui_only behavior)
-
-## Slider filter
-
-Range slider for bounded numeric dimensions. Supports dual-thumb (range) and single-thumb modes.
-
-Requires `slider_config` with explicit `min` and `max` bounds. Reuses `number_range` value structure — no new value types needed.
-
-```yaml
-# Dual-thumb range slider
-- id: age_range
-  type: slider
-  column: user_age
-  label: Age Range
-  slider_config:
-    min: 0                 # Required. Lower bound
-    max: 100               # Required. Upper bound
-    step: 1                # Optional. Step size (default: 1)
-    range: true            # Optional. true = two thumbs (default), false = single thumb
-    show_input: true       # Optional. Show numeric input fields alongside slider
-    format: "{value} yrs"  # Optional. Display format ({value} placeholder)
-  default:
-    min: 18
-    max: 65
-
-# Single-thumb minimum threshold
-- id: min_spend
-  type: slider
-  column: total_spend
-  label: Minimum Spend
-  slider_config:
-    min: 0
-    max: 10000
-    step: 100
-    range: false
-    format: "${value}"
-  default: 500
-```
-
-SQL rendering: identical to `number_range` — `column >= min AND column <= max` (range) or `column >= value` (single-thumb). Empty/null → `1=1`.
-
-## Select single-select mode
-
-When `selection.max_selected: 1`, the select filter switches to single-select mode:
-
-- Auto-applies on click (no Apply button)
-- No checkboxes, include/exclude toggle, or select-all
-- Shows selected label instead of "1 selected"
-- Popover closes on selection
-- Clearable by default — click the selected value to deselect, or use the X button. Opt out with `clearable: false`
-- When cleared, SQL renders as `1=1` (no filter applied)
-
-```yaml
-- id: currency
-  type: select
-  column: currency
-  label: Currency
-  source:
-    type: static
-    options:
-      - { value: USD, label: "US Dollar" }
-      - { value: EUR, label: Euro }
-      - { value: GBP, label: "British Pound" }
-  selection:
-    max_selected: 1
-  default: USD
-```
-
-## Filter sources
-
-### Static options
-
-```yaml
-source:
-  type: static
-  options:
-    - { value: ios, label: iOS }
-    - { value: android, label: Android, icon: Smartphone }
-    - { value: web, label: Web, disabled: true }
-```
-
-### Query (SQL from ClickHouse)
-
-```yaml
-source:
-  type: query
-  sql: "SELECT DISTINCT media_source FROM marts.marketing_creatives"
-  value_field: media_source            # Optional. Column for value
-  label_field: media_source            # Optional. Column for label
-```
-
-### Projection (from DuckDB projection)
-
-```yaml
-source:
-  type: projection
-  projection: daily_costs_by_source    # Projection key
-  value_field: media_source            # Required. Column for value
-  label_field: media_source            # Optional. Column for label
-  order_by: media_source               # Optional. Sort column
-  limit: 100                           # Optional. Max options
-```
-
-### Cascade (depends on another filter)
-
-```yaml
-source:
-  type: cascade
-  depends_on: media_source             # Parent filter id
-```
-
-### Remote (server-side search)
-
-```yaml
-source:
-  type: remote
-  search_endpoint: /api/search/campaigns
-  min_search_length: 2                 # Optional. Min chars before search
-```
-
-## Selection behavior
-
-```yaml
-selection:
-  empty_means: all                     # all | none. What empty selection means
-  allow_select_all: true               # Show "Select all" button
-  allow_exclude_mode: true             # Allow switching to exclude mode
-  min_selected: 1                      # Min items required
-  max_selected: 5                      # Max items allowed
-```
-
-## Presets (for date_range)
-
-```yaml
-presets:
-  - { id: today, label: Today, tag: Live }
-  - { id: yesterday, label: Yesterday, tag: Live }
-  - { id: last_7_days, label: "Last 7 days", tag: Rolling }
-  - { id: last_14_days, label: "Last 14 days", tag: Rolling }
-  - { id: last_30_days, label: "Last 30 days", tag: Rolling }
-  - { id: this_month, label: "This month" }
-  - { id: last_month, label: "Last month" }
-  - { id: last_6_months, label: "Last 6 months" }
-  - { id: last_12_months, label: "Last 12 months" }
-default:
-  preset: last_14_days
-```
-
-## Default values
-
-```yaml
-# Preset reference
-default:
-  preset: last_14_days
-
-# Direct value
-default: "ios"
-
-# Array
-default: [ios, android]
-
-# Range
-default:
-  start: "2024-01-01"
-  end: "2024-12-31"
-
-# Number range
-default:
-  min: 0
-  max: 100
-```
-
-## Filter hierarchy
-
-Dashboard filters -> tab filters -> section filters -> widget inline_filters.
-
-Widgets can control which inherited filters apply:
-
-```yaml
-widgets:
-  - id: my_widget
-    type: rich_table
+<schema>
+  <filter_definition>
+    ```yaml
     filters:
-      include: [date_range]            # Only use these from parent scopes
-    # OR
+      - id: date_range                     # Required. Unique identifier
+        type: date_range                   # Required. See filter types below
+        column: install_date               # Required (nullable). Target column in SQL
+        label: Date Range                  # Optional (inferred from id at runtime)
+        placeholder: Select...             # Optional. Empty state text
+        icon: Calendar                     # Optional. Lucide icon name
+        required: true                     # Optional. Must have a value
+        clearable: true                    # Optional. Allow clearing (default: true)
+        searchable: true                   # Optional. Enable search in select
+        ui_only: false                     # Optional. No SQL effect
+        serializable: true                 # Optional. Serialize to URL
+        pool: geo                          # Optional. Progressive disclosure pool
+        source: {}                         # Optional. How to get options
+        selection: {}                      # Optional. Selection behavior
+        default: {}                        # Optional. Default value
+        presets: []                        # Optional. Predefined presets
+        # Boolean only:
+        true_label: "Yes"                  # Optional (default: "Yes")
+        false_label: "No"                  # Optional (default: "No")
+        true_value: 1                      # Optional (default: 1)
+        false_value: 0                     # Optional (default: 0)
+        # Segmented only:
+        allow_none: false                  # Optional. Allow deselecting all
+        icon_only: false                   # Optional. Icons only, labels as tooltips
+        # Slider only:
+        slider_config: {}                  # Required for slider type
+    ```
+  </filter_definition>
+</schema>
+
+<options>
+  <filter_types>
+    | Type | UI Component | Value Type | Notes |
+    |---|---|---|---|
+    | `select` | MultiSelect dropdown | `string[]` or `string` | Requires `source` |
+    | `date_range` | DateRangePicker | `{ start, end, preset? }` | — |
+    | `relative_date` | Select dropdown | `{ preset }` | Preset-based |
+    | `number_range` | Min/max inputs | `{ min?, max? }` | — |
+    | `search` | Text input | `string` | — |
+    | `boolean` | Toggle (Yes/No) | `boolean` | Requires `default` |
+    | `segmented` | Toggle group | `string \| string[]` | — |
+    | `slider` | Range slider | `{ min?, max? }` or `number` | Requires `slider_config` |
+  </filter_types>
+
+  <source_types>
+    | Source | Key Fields | Description |
+    |---|---|---|
+    | `static` | `type: static`, `options: [{ value, label, icon?, disabled? }]` | Hardcoded list |
+    | `query` | `type: query`, `sql`, `value_field?`, `label_field?` | ClickHouse SQL |
+    | `projection` | `type: projection`, `projection`, `value_field`, `label_field?`, `order_by?`, `limit?` | From DuckDB projection |
+    | `cascade` | `type: cascade`, `depends_on: <filter_id>` | Depends on parent filter |
+    | `remote` | `type: remote`, `search_endpoint`, `min_search_length?` | Server-side search |
+    | SQL shorthand | `sql`, `value_field?`, `label_field?` (no `type`) | Expanded at load time |
+  </source_types>
+
+  <selection_config>
+    ```yaml
+    selection:
+      empty_means: all           # all | none
+      allow_select_all: true     # Show "Select all" button
+      allow_exclude_mode: true   # Allow switching to exclude mode
+      min_selected: 1            # Min items required
+      max_selected: 5            # Max items allowed (1 = single-select mode)
+    ```
+  </selection_config>
+
+  <slider_config>
+    ```yaml
+    slider_config:
+      min: 0                     # Required. Lower bound
+      max: 100                   # Required. Upper bound (must be > min)
+      step: 1                    # Optional. Step size (default: 1)
+      range: true                # Optional. true = two thumbs (default), false = single
+      show_input: true           # Optional. Numeric inputs alongside slider
+      format: "{value} yrs"      # Optional. Display format
+    ```
+  </slider_config>
+
+  <url_serialization>
+    | Value type | URL format | Example |
+    |---|---|---|
+    | String | raw | `f_status=active` |
+    | Array (include) | comma-separated | `f_channel=fb,google` |
+    | Array (exclude) | `!` prefix | `f_channel=!fb,google` |
+    | Date range (custom) | `start~end` | `f_date_range=2024-01-01~2024-02-01` |
+    | Date range (preset) | `preset:<id>` | `f_date_range=preset:last_30_days` |
+    | Boolean | `true`/`false` | `f_active=true` |
+    | Number range / Slider | `min~max` | `f_age=18~65` |
+
+    | Scope | Default serializable | Behavior |
+    |---|---|---|
+    | Dashboard filters | `true` | Auto-synced to URL |
+    | Section filters | `false` | Share link only if `serializable: true` |
+    | Widget inline filters | `false` | Share link only if `serializable: true` |
+  </url_serialization>
+</options>
+
+<examples>
+  <boolean_filter>
+    ```yaml
+    - id: is_organic
+      type: boolean
+      column: is_organic
+      label: Organic
+      default: false
+
+    # Custom labels and SQL values
+    - id: status
+      type: boolean
+      column: status
+      label: Status
+      true_label: Active
+      false_label: Inactive
+      true_value: "'active'"
+      false_value: "'inactive'"
+      default: true
+    ```
+    SQL: `column = 1` / `column = 0` (default), or `column = <true_value>` / `column = <false_value>`.
+  </boolean_filter>
+
+  <segmented_filter>
+    ```yaml
+    # Single-select with icons (clearable by default)
+    - id: platform
+      type: segmented
+      column: platform
+      default: ios
+      source:
+        type: static
+        options:
+          - { value: ios, label: iOS, icon: Apple }
+          - { value: android, label: Android, icon: Smartphone }
+
+    # SQL-loaded options
+    - id: country
+      type: segmented
+      column: country
+      source:
+        sql: "SELECT DISTINCT country FROM {{source:main}} ORDER BY country LIMIT 8"
+
+    # Icon-only UI toggle
+    - id: view_mode
+      type: segmented
+      column: null
+      ui_only: true
+      default: table
+      icon_only: true
+      source:
+        type: static
+        options:
+          - { value: table, label: Table view, icon: Table }
+          - { value: chart, label: Chart view, icon: BarChart }
+    ```
+  </segmented_filter>
+
+  <slider_filter>
+    ```yaml
+    # Dual-thumb range
+    - id: age_range
+      type: slider
+      column: user_age
+      label: Age Range
+      slider_config: { min: 0, max: 100, step: 1, range: true, show_input: true, format: "{value} yrs" }
+      default: { min: 18, max: 65 }
+
+    # Single-thumb minimum threshold
+    - id: min_spend
+      type: slider
+      column: total_spend
+      label: Minimum Spend
+      slider_config: { min: 0, max: 10000, step: 100, range: false, format: "${value}" }
+      default: 500
+    ```
+  </slider_filter>
+
+  <single_select>
+    When `selection.max_selected: 1`, select switches to single-select mode:
+    auto-applies on click, no checkboxes, popover closes on selection, clearable.
+
+    ```yaml
+    - id: currency
+      type: select
+      column: currency
+      label: Currency
+      source:
+        type: static
+        options:
+          - { value: USD, label: "US Dollar" }
+          - { value: EUR, label: Euro }
+      selection: { max_selected: 1 }
+      default: USD
+    ```
+  </single_select>
+
+  <date_range_with_presets>
+    ```yaml
+    - id: date_range
+      type: date_range
+      column: install_date
+      presets:
+        - { id: today, label: Today, tag: Live }
+        - { id: yesterday, label: Yesterday, tag: Live }
+        - { id: last_7_days, label: "Last 7 days", tag: Rolling }
+        - { id: last_14_days, label: "Last 14 days", tag: Rolling }
+        - { id: last_30_days, label: "Last 30 days", tag: Rolling }
+        - { id: this_month, label: "This month" }
+        - { id: last_month, label: "Last month" }
+      default:
+        preset: last_14_days
+    ```
+  </date_range_with_presets>
+
+  <widget_filter_scope>
+    ```yaml
+    widgets:
+      - id: my_widget
+        type: rich_table
+        filters:
+          include: [date_range]       # Only these from parent scopes
+        # OR
+        filters:
+          exclude: [media_source]     # All except these
+        inline_filters:               # Widget-scoped
+          - id: local_filter
+            type: select
+            column: status
+            source:
+              type: static
+              options:
+                - { value: active, label: Active }
+                - { value: paused, label: Paused }
+    ```
+  </widget_filter_scope>
+</examples>
+
+<patterns>
+  <filter_pools>
+    Filters with `pool` are hidden by default, shown via "+ Add filter" button.
+
+    ```yaml
     filters:
-      exclude: [media_source]          # Use all except these
-    inline_filters:                    # Widget-scoped filters
-      - id: local_filter
+      - id: date_range
+        type: date_range
+        column: dt
+        default: { preset: last_14_days }
+
+      # Hidden by default — pool: language
+      - id: native_language
         type: select
-        column: status
+        column: native_language
+        pool: language
         source:
-          type: static
-          options:
-            - { value: active, label: Active }
-            - { value: paused, label: Paused }
-```
+          type: query
+          sql: "SELECT DISTINCT native_language AS value FROM {{source:main}}"
+    ```
 
-## Section-level filter example
+    Pool labels auto-derived: `snake_case` → Title Case (e.g. `campaign_details` → "Campaign Details").
+    User customization persists in localStorage.
+  </filter_pools>
 
-```yaml
-sections:
-  - id: total-by-ad
-    title: Total by Ad
-    filters:
-      - id: media_source
-        type: select
-        column: media_source
-        label: Media Source
-        source:
-          type: projection
-          projection: daily_costs_by_source
-          value_field: media_source
-          label_field: media_source
-        selection:
-          empty_means: all
-    widgets: [...]
-```
+  <shared_filters>
+    Root-level `_shared/_filters.yaml` inherited by all dashboards:
+    ```yaml
+    - id: date_range
+      type: date_range
+      column: install_date
+      default: { preset: last_14_days }
+    ```
 
-## Directory-based dashboards: shared filters
+    Override rule: if dashboard defines ANY filters, root filters are completely replaced.
 
-In directory-based dashboards, filters can be defined in `_shared/_filters.yaml`:
+    Tab-level override in composite tabs: `<tab>/_shared/_filters.yaml` replaces dashboard filters for that tab.
+    Priority: tab `_shared/_filters.yaml` > section `filters:` > dashboard `_shared/_filters.yaml`.
+  </shared_filters>
 
-```yaml
-# _shared/_filters.yaml — array, replaces dashboard-level filters
-- id: date_range
-  type: date_range
-  column: install_date
-  default:
-    preset: last_14_days
-```
+  <smart_search>
+    Smart search is a rich_table feature, NOT a filter type. Configured via `filtering.global_search`:
 
-Override rule: `_shared/_filters.yaml` **replaces** dashboard-level filters entirely (not merged).
+    ```yaml
+    filtering:
+      global_search:
+        enabled: true
+        show_token_pills: false
+        token_pills_expanded: true
+    ```
 
-### Tab-level filter override
+    Search results participate in cross-filtering: narrowing select options, locking search-derived columns (blue ring), auto-pruning invalid selections.
+  </smart_search>
 
-Composite tabs (directory tabs) can override dashboard-level filters via `<tab>/_shared/_filters.yaml`:
+  <inline_column_filters>
+    Column-level filters use bi-directional cross-filtering: each select dropdown shows only values existing given all other active inline filters.
 
-```
-dashboards/
-  my-dashboard/
-    _shared/_filters.yaml          ← dashboard-level (base)
-    01-overview/
-      _tab.yaml                    ← meta only (id, title)
-      _shared/_filters.yaml        ← tab-level override (replaces dashboard filters for this tab)
-      01-section.yaml
-```
+    - Independent — changing one does not reset others
+    - Pruning — if a selected value disappears, it's auto-removed
+    - Works with all datasource types
+    - Data presets change base SQL, so options reflect the active subset
+  </inline_column_filters>
 
-Priority: `<tab>/_shared/_filters.yaml` > section-file `filters:` > dashboard `_shared/_filters.yaml`.
+  <section_navigation>
+    Sections and widgets have DOM `id` attributes (`id="s-{sectionId}"`, `id="w-{widgetId}"`):
+    ```text
+    /dashboards/<root>/<dashboard>/<tab>#s:section_id
+    /dashboards/<root>/<dashboard>/<tab>#w:widget_id
+    ```
+    Collapsed sections auto-expand when navigated to.
+    `shareable: true` shows a share button generating a link with filter context + anchor.
+  </section_navigation>
+</patterns>
 
-**Deprecated:** defining `filters:` directly in composite tab `_tab.yaml`. Move to `<tab>/_shared/_filters.yaml` instead.
+<rules>
+  <validation_constraints>
+    - `select` filters REQUIRE a `source`
+    - `boolean` filters REQUIRE `default`
+    - `slider` filters REQUIRE `slider_config` with `min < max`
+    - Filters with `pool` CANNOT have `default` (hidden filter with default = silent data filtering)
+    - `clearable` applies to: select (single-select), segmented (single-select)
+  </validation_constraints>
 
-## Smart Table Search (`global_search`)
+  <sql_rendering>
+    - Single value → `column = 'value'`
+    - Multi-select → `column IN ('a', 'b')`
+    - Empty/cleared → `1=1` (no filter)
+    - Boolean → `column = 1` or `column = 0` (or custom values)
+    - Segmented no selection → `1=1`
+    - Slider range → `column >= min AND column <= max`
+    - Slider single → `column >= value`
+  </sql_rendering>
+</rules>
 
-Smart search is a widget-level feature for `rich_table`. It is **not** a filter type in the traditional filter hierarchy — it works by injecting inline column filters dynamically.
-
-- Configured via `filtering.global_search` in the widget YAML (see `dashboard-rich-table` rule for full docs)
-- Uses a full-text search index built from DuckDB dimension values
-- Resolved tokens are applied as inline column filters (highlighted in blue)
-- Does not participate in the dashboard → section filter cascade
-
-```yaml
-# In a rich_table widget:
-filtering:
-  global_search:
-    enabled: true
-    show_token_pills: false    # Optional. Show parsed-tokens badge
-    token_pills_expanded: true # Optional. Start pills tray expanded (default: true)
-```
-
-## Inline column filters (rich_table)
-
-Column-level filters configured via `filtering.show_filter_row: true` use bi-directional cross-filtering: each select filter's dropdown shows only values that exist given **all other** active inline filters, regardless of column order.
-
-- Filters are independent — changing one does not reset others.
-- If a selected value disappears from available options (due to other filter changes), it is auto-pruned from the selection.
-- Works with all datasource types: base sources, projections, view datasources.
-- Text, number, and date inline filters also contribute to cross-filtering for select columns.
-- Data presets change the base SQL, so select options reflect the active preset's data subset.
-
-### Smart search interaction
-
-Smart search (`global_search`) results participate in cross-filtering:
-
-1. **Narrow options** — when a search query resolves to column filters (e.g. `en fb` → `language=en, media_source=fb`), select dropdowns for other columns narrow accordingly. Virtual search IDs (`__search_text`, negations, ranges) are ignored.
-2. **Lock controls** — columns whose value comes from smart search are disabled (user cannot override the search-derived value). A blue ring indicates the locked state.
-3. **Clear restores** — clearing the search input removes all search-derived values and re-enables all controls.
-
-## Root-level shared filters
-
-A root can define shared filters in `_shared/_filters.yaml` (next to `+layout.yaml`). These are inherited by **all dashboards** in that root that do not define their own filters:
-
-```yaml
-# dashboards/<root>/_shared/_filters.yaml — inherited by all dashboards
-- id: date_range
-  type: date_range
-  column: install_date
-  default:
-    preset: last_14_days
-```
-
-Override rule: if a dashboard defines **any** filters via `_shared/_filters.yaml`, root-level filters are completely replaced. If a dashboard defines no dashboard-level filters, root-level filters are inherited.
-
-### Full filter hierarchy
-
-Root-level filters → dashboard filters → tab filters → section filters → widget inline_filters.
-
-## URL serialization
-
-Filters can be serialized to URL for shareable dashboard state. Two modes:
-
-- **Live sync** — dashboard-scope filters are auto-synced to the address bar as `f_<id>=value` via `replaceState` (debounced)
-- **Share link** — "Copy link to widget/section" generates a full URL (clipboard only) with scoped filters compressed in a `ctx` param + navigation hash
-
-### `serializable` flag
-
-| Scope | Default | Effect |
-| ----- | ------- | ------ |
-| Dashboard filters | `true` | Auto-synced to URL; opt-out via `serializable: false` |
-| Section filters | `false` | Included in share link only if `serializable: true` |
-| Widget inline filters | `false` | Included in share link only if `serializable: true` |
-
-```yaml
-# Dashboard filter — serialized by default, no change needed
-filters:
-  - id: date_range
-    type: date_range
-    column: install_date
-
-  # Opt-out for ui_only filters that have no sharing value
-  - id: comparison
-    type: segmented
-    ui_only: true
-    serializable: false
-
-# Section filter — opt-in
-sections:
-  - id: funnel
-    filters:
-      - id: funnel_step
-        type: select
-        column: step
-        serializable: true       # included in share link
-```
-
-### URL format
-
-| Value type | Format | Example |
-| ---------- | ------ | ------- |
-| String | raw | `f_status=active` |
-| Array (include) | comma-separated | `f_channel=fb,google` |
-| Array (exclude) | `!` prefix | `f_channel=!fb,google` |
-| Date range (custom) | `start~end` | `f_date_range=2024-01-01~2024-02-01` |
-| Date range (preset) | `preset:<id>` | `f_date_range=preset:last_30_days` |
-| Boolean | `true`/`false` | `f_active=true` |
-| Segmented (single) | raw | `f_platform=ios` |
-| Segmented (multi) | comma-separated | `f_device=phone,tablet` |
-| Number range / Slider | `min~max` | `f_age=18~65` |
-
-### Section & widget navigation
-
-Sections and widgets have DOM `id` attributes (`id="s-{sectionId}"`, `id="w-{widgetId}"`) and support hash-based navigation:
-
-```text
-/dashboards/<root>/<dashboard>/<tab>#s:section_id       → scroll to section
-/dashboards/<root>/<dashboard>/<tab>#w:widget_id        → scroll to widget
-```
-
-Collapsed sections auto-expand when navigated to.
-
-### `shareable` flag on sections/widgets
-
-Sections and widgets support `shareable: true` (default for sections with titles, and widgets with titles). This shows a share button that generates a link with the current filter context + navigation anchor.
-
-## Filter pools
-
-Filters can be assigned to named **pools** for progressive disclosure. Filters without a `pool` are always visible; filters with a `pool` are hidden by default and available via a "+ Add filter" button in the filter bar.
-
-```yaml
-filters:
-  # Always visible — no pool
-  - id: date_range
-    type: date_range
-    column: dt
-    default:
-      preset: last_14_days
-
-  - id: platform
-    type: select
-    column: platform
-    source:
-      type: query
-      sql: "SELECT DISTINCT platform AS value, platform AS label FROM {{source:main}}"
-
-  # Hidden by default — pool: language
-  - id: native_language
-    type: select
-    column: native_language
-    label: Native language
-    pool: language
-    source:
-      type: query
-      sql: "SELECT DISTINCT native_language AS value, native_language AS label FROM {{source:main}}"
-
-  - id: learning_language
-    type: select
-    column: learning_language
-    label: Learning language
-    pool: language
-    source:
-      type: query
-      sql: "SELECT DISTINCT learning_language AS value, learning_language AS label FROM {{source:main}}"
-```
-
-Pool labels are auto-derived from the pool id: `snake_case / kebab-case → Title Case` (e.g. `campaign_details` → "Campaign Details").
-
-**Restriction:** A filter with `pool` cannot also have `default`. A hidden pool filter with a default value would silently filter data — always remove either `pool` or `default`.
-
-User customization (which pool filters are shown) persists in localStorage.
-
-## SQL template syntax
-
-In base source SQL (ClickHouse), use `${filters.filter_id('column_expression')}`:
-
-```sql
-WHERE ${filters.date_range('toDate(install_date)')}
-  AND ${filters.media_source('media_source')}
-```
+<see_also>
+  - `dashboard-datasources` — filter macros in SQL, `.if_set`, `.or_true`, auto filters
+  - `dashboard-rich-table` — inline column filtering, smart search
+  - `dashboard-yaml-structure` — filter hierarchy, shared filters, directory mode
+</see_also>
+</rule>

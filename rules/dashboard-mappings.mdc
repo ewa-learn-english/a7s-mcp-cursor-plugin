@@ -4,145 +4,125 @@ globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
-# Value Mappings
+<rule>
+<meta>
+  This rule covers value mapping dictionaries that rename raw values to human-readable labels in widget columns.
+  Activate when defining `mappings:` blocks or referencing mappings in column definitions.
+</meta>
 
-Mappings are dictionaries that rename raw values to human-readable labels in widget columns.
+<schema>
+  <mapping_definition>
+    ```yaml
+    mappings:
+      languages:
+        entries:
+          arabic: AR
+          english: EN
+          french: FR
+          german: DE
+          spanish: ES
+          russian: RU
+          unknown: ""
+        fallback: original                  # Keep original if no match
 
-## Definition
+      media_sources:
+        entries:
+          Facebook_abakus: FB_A
+          Facebook Ads: FB
+          googleadwords_int: GA
+          TikTok: TT
+          True organic: Org
 
-Define mappings at the dashboard top level:
+      platforms:
+        entries:
+          ios: iOS
+          android: Android
+          web: Web
+    ```
+  </mapping_definition>
 
-```yaml
-mappings:
-  languages:
-    entries:
-      arabic: AR
-      english: EN
-      french: FR
-      german: DE
-      spanish: ES
-      russian: RU
-      unknown: ""
-    fallback: original                  # Keep original value if no match
+  <fallback_behavior>
+    ```yaml
+    # Keep original value if not in entries
+    fallback: original
 
-  media_sources:
-    entries:
-      Facebook_abakus: FB_A
-      Facebook Ads: FB
-      googleadwords_int: GA
-      TikTok: TT
-      True organic: Org
-    # No fallback = unmapped values show as-is
+    # Use a fixed default string
+    fallback:
+      default: "Unknown"
 
-  platforms:
-    entries:
-      ios: iOS
-      android: Android
-      web: Web
-```
+    # No fallback (omit field) = show original value as-is
+    ```
+  </fallback_behavior>
 
-## Fallback behavior
-
-```yaml
-# Keep original value if not in entries
-fallback: original
-
-# Use a fixed default string
-fallback:
-  default: "Unknown"
-
-# No fallback (omit field) = show original value as-is
-```
-
-## Usage in columns
-
-Reference a mapping in rich_table or pivot column definitions:
-
-```yaml
-columns:
-  - id: language
-    label: Lang
-    type: dimension
-    mapping: { id: languages }           # Applies languages mapping
-
-  - id: media_source
-    label: MS
-    type: dimension
-    mapping: { id: media_sources }
-
-  - id: payment_source
-    label: Payment source
-    type: dimension
-    mapping: { id: platforms }
-    # Can override fallback per column:
-    # mapping: { id: platforms, fallback: { default: "Other" } }
-```
-
-## Usage in projection columns
-
-Projection column metadata can also reference mappings:
-
-```yaml
-projections:
-  daily_costs_by_source:
-    sql: |
-      SELECT media_source, SUM(costs) as costs
-      FROM {{source:total_by_ad}}
-      GROUP BY 1
+  <mapping_reference>
+    In rich_table column definitions:
+    ```yaml
     columns:
-      media_source: { type: string, description: "Media source", mapping: media_sources }
-```
+      - id: language
+        label: Lang
+        type: dimension
+        mapping: { id: languages }
 
-## Column normalize
+      - id: payment_source
+        label: Payment
+        type: dimension
+        mapping: { id: platforms, fallback: { default: "Other" } }
+    ```
+  </mapping_reference>
+</schema>
 
-Independent of mappings, columns can normalize text casing:
+<examples>
+  <in_projection_columns>
+    ```yaml
+    projections:
+      daily_costs_by_source:
+        sql: |
+          SELECT media_source, SUM(costs) as costs
+          FROM {{source:total_by_ad}}
+          GROUP BY 1
+        columns:
+          media_source: { type: string, description: "Media source", mapping: media_sources }
+    ```
+  </in_projection_columns>
 
-```yaml
-columns:
-  - id: plan_name
-    label: Type
-    type: dimension
-    normalize: capitalize               # capitalize | uppercase | lowercase
-```
+  <normalize>
+    Independent of mappings, columns can normalize text casing:
+    ```yaml
+    - id: plan_name
+      label: Type
+      type: dimension
+      normalize: capitalize               # capitalize | uppercase | lowercase
+    ```
+    - `capitalize`: "max" → "Max"
+    - `uppercase`: "max" → "MAX"
+    - `lowercase`: "MAX" → "max"
+  </normalize>
 
-- `capitalize`: "max" -> "Max"
-- `uppercase`: "max" -> "MAX"
-- `lowercase`: "MAX" -> "max"
+  <shared_mappings>
+    In `_shared/_mappings.yaml` (flat dict):
+    ```yaml
+    languages:
+      entries:
+        english: EN
+        russian: RU
+      fallback: original
+    ```
+    Merge: dashboard `_shared/` is base; tab mappings override on key conflict.
+  </shared_mappings>
+</examples>
 
-## Directory-based dashboards: shared mappings
+<rules>
+  <hard_constraints>
+    - Mapping key lookup is **case-insensitive** at runtime (keys normalized to lowercase)
+    - Mappings are applied at render time, not in SQL
+    - Use `fallback: original` to pass through unmapped values unchanged
+    - Mappings are defined once at dashboard level and reused across all widgets
+    - Per-column `fallback` in mapping ref overrides the mapping definition's fallback
+  </hard_constraints>
+</rules>
 
-In directory-based dashboards, mappings can be defined in `_shared/_mappings.yaml`:
-
-```yaml
-# _shared/_mappings.yaml — flat dict, merged into dashboard mappings
-languages:
-  entries:
-    english: EN
-    russian: RU
-  fallback: original
-```
-
-Merge rule: dashboard `_shared/_mappings.yaml` is base; tab-level mappings (tab `_shared` or tab-content files) override on key conflict.
-
-## Dashboard-level shared mappings
-
-A dashboard can define shared mappings in `_shared/_mappings.yaml` (next to `+layout.yaml`). These are inherited by **all tabs** in that dashboard:
-
-```yaml
-# dashboards/<root>/<dashboard>/_shared/_mappings.yaml — inherited by all tabs
-languages:
-  entries:
-    english: EN
-    russian: RU
-  fallback: original
-```
-
-Merge rule: dashboard = base, tab mappings override on key conflict (same as tab-level `_shared/`).
-
-## Rules
-
-- Mapping keys are case-sensitive. The raw value must match exactly.
-- Mappings are applied at render time, not in SQL.
-- Use `fallback: original` to pass through unmapped values unchanged.
-- Mappings are defined once at dashboard level and reused across all widgets.
-- For column-specific overrides, set `fallback` in the column's `mapping` ref.
+<see_also>
+  - `dashboard-rich-table` — column mapping references, normalize
+  - `dashboard-yaml-structure` — shared mappings, merge hierarchy
+</see_also>
+</rule>

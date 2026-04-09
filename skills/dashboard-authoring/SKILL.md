@@ -59,6 +59,7 @@ Available tools and their purpose:
 | `create_section` | Add a content section/widgets to a tab |
 | `update_section` | Modify an existing section |
 | `update_shared` | Modify shared datasources/filters/mappings |
+| `update_root_changelog` | Create/update root-level product changelog |
 | `delete_dashboard` | Remove a dashboard and all its content |
 
 **Critical rules:**
@@ -66,6 +67,7 @@ Available tools and their purpose:
 - Reference shared datasources via `{{source:name}}` — never hardcode table names in widgets
 - Use filter macros (`${filters.date_range('toDate(col)')}`) — never hardcode date ranges
 - Base source SQL uses **ClickHouse** syntax; projection/view SQL uses **DuckDB** syntax
+- **LAYOUT**: Prefer section-level `layout: horizontal` + `columns: N` for multi-column layouts. Reserve `col_span` only for unequal widths or wide tables (`col_span: 15`)
 
 ### Phase 4: VALIDATE
 

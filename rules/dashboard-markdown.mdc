@@ -4,155 +4,165 @@ globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
-# Markdown Widget
+<rule>
+<meta>
+  This rule covers the `markdown` widget: data-driven dynamic text with template expressions, formatting helpers, conditionals, and links.
+  Activate when creating markdown widgets in dashboard YAML.
+</meta>
 
-The `markdown` widget renders dynamic text using `{{mustache}}` template expressions populated with data from an inline SQL query. The engine is eval-free (no `new Function`, CSP-safe).
+<concepts>
+  <engine>Eval-free template engine (no `new Function`, CSP-safe). Renders Markdown → HTML via `marked` + `DOMPurify`.</engine>
+  <data_model>Inline SQL returns a single row. Each column becomes a template variable.</data_model>
+</concepts>
 
-## Basic structure
+<schema>
+  <markdown_widget>
+    ```yaml
+    - id: summary
+      type: markdown
+      col_span: 6
+      row_span: 2
+      datasource:
+        sql: |                              # Required. Inline SQL (DuckDB syntax)
+          SELECT SUM(costs) AS total_costs, SUM(revenue_net) AS total_revenue
+          FROM {{source:total_by_ad}}
+      template: |                           # Required. Mustache-like template
+        ## Total by Ad
+        Revenue: **{{currency_short total_revenue}}**
+        Costs: **{{currency_short total_costs}}**
+      render:                               # Optional
+        sanitize: true                      #   Sanitize HTML (default: true)
+        allow_html: false                   #   Allow raw HTML in template
+      style:                                # Optional
+        prose: true                         #   Tailwind prose typography
+        prose_size: base                    #   sm | base | lg
+        custom_css: "border-b pb-4 mb-4"   #   Additional CSS classes
+      links:                                # Optional
+        enabled: true
+        base_url: /dashboards/product/samples
+    ```
+  </markdown_widget>
+</schema>
 
-```yaml
-- id: summary
-  type: markdown
-  col_span: 6
-  row_span: 2
-  datasource:
-    sql: |                              # Inline SQL (runs in DuckDB)
-      SELECT SUM(costs) AS total_costs, SUM(revenue_net) AS total_revenue
-      FROM {{source:total_by_ad}}
-  template: |                           # Template (mustache-like syntax)
-    ## Total by Ad
-    Revenue: **{{currency_short total_revenue}}**
-    Costs: **{{currency_short total_costs}}**
-  render:                               # Optional
-    sanitize: true                      # Sanitize HTML (default: true)
-    allow_html: false                   # Allow raw HTML in template
-  style:                                # Optional
-    prose: true                         # Enable prose typography
-    prose_size: base                    # sm | base | lg
-    custom_css: "border-b pb-4 mb-4"   # Additional CSS classes
-  links:                                # Optional
-    enabled: true
-    base_url: /dashboards/product/samples  # Base URL for relative links
-```
+<options>
+  <template_syntax>
+    **Variables:** `{{column_name}}`
+    **Formatting helpers:**
+    | Helper | Example | Output |
+    |---|---|---|
+    | `{{currency_short val}}` | `{{currency_short revenue_net}}` | $1.2M, $450K |
+    | `{{number val}}` | `{{number installs}}` | 1,234,567 |
+    | `{{percent val}}` | `{{percent share}}` | 45.2% |
 
-## Data source
+    **Iteration:**
+    ```handlebars
+    {{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
+    ```
 
-Markdown widgets use inline SQL (not a datasource key). The SQL runs in DuckDB and references materialized sources via `{{source:key}}`:
+    **Conditionals:**
+    ```handlebars
+    {{#gt revenue_net 0}}Revenue is positive!{{/gt}}
+    {{#gt unprofitable_share 0.2}}⚠️ Warning: above 20%.{{/gt}}
+    ```
 
-```yaml
-datasource:
-  sql: |
-    WITH base AS (
-      SELECT language, SUM(costs) AS spend
-      FROM {{source:total_by_ad}}
-      GROUP BY language
-    )
-    SELECT
-      LIST(STRUCT_PACK(language := language, share := spend / SUM(spend) OVER ())) AS top_languages
-    FROM base
-    ORDER BY spend DESC
-    LIMIT 3
-```
+    **Links:**
+    ```handlebars
+    {{link "Open report ->" to="/dashboards/product/samples/01-marketing" passFilters=true}}
+    ```
+    `passFilters=true` forwards current filter state.
 
-The query result is a single row. Each column becomes a template variable.
+    **Source interpolation:** `{{source:key}}` resolves to DuckDB table name.
+    **Filter access:** `{{__filters.key}}` reads URL search params.
+    **Selection access:** `{{selection.widget_id}}` for cross-widget data.
+  </template_syntax>
+</options>
 
-## Template syntax
+<examples>
+  <kpi_cards>
+    Use section `layout: horizontal` for KPI card rows:
 
-### Basic variables
+    ```yaml
+    sections:
+      - id: kpi-cards
+        layout: horizontal
+        columns: 3
+        widgets:
+          - id: revenue-card
+            type: markdown
+            datasource:
+              sql: SELECT SUM(revenue_net) AS revenue FROM {{source:daily}}
+            template: |
+              ### Revenue
+              **{{currency_short revenue}}**
+            style: { prose: true, prose_size: sm }
 
-```handlebars
-Revenue: **{{total_revenue}}**
-Costs: **{{total_costs}}**
-```
+          - id: costs-card
+            type: markdown
+            datasource:
+              sql: SELECT SUM(costs) AS costs FROM {{source:daily}}
+            template: |
+              ### Costs
+              **{{currency_short costs}}**
+            style: { prose: true, prose_size: sm }
 
-### Formatting helpers
+          - id: roi-card
+            type: markdown
+            datasource:
+              sql: |
+                SELECT (SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100 AS roi
+                FROM {{source:daily}}
+            template: |
+              ### ROI
+              **{{percent roi}}**
+            style: { prose: true, prose_size: sm }
+    ```
+  </kpi_cards>
 
-```handlebars
-{{currency_short revenue_net}}        → $1.2M, $450K, $23
-{{number installs}}                   → 1,234,567
-{{percent share}}                     → 45.2%
-```
+  <full_example>
+    ```yaml
+    - id: campaign_summary_header
+      type: markdown
+      col_span: 12
+      datasource:
+        sql: |
+          WITH base AS (
+            SELECT language, SUM(costs) AS spend FROM {{source:total_by_ad}} GROUP BY language
+          ),
+          totals AS (
+            SELECT SUM(spend) AS total_spend FROM base
+          ),
+          top AS (
+            SELECT language, spend FROM base ORDER BY spend DESC LIMIT 3
+          )
+          SELECT LIST(STRUCT_PACK(
+            language := language,
+            share := spend / NULLIF((SELECT total_spend FROM totals), 0)
+          )) AS top_languages
+          FROM top
+      template: |
+        ## Total by Campaign
+        Top languages: {{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
+      style:
+        prose: true
+        prose_size: base
+        custom_css: "border-b pb-4 mb-4"
+    ```
+  </full_example>
+</examples>
 
-### Iteration
+<rules>
+  <hard_constraints>
+    - `datasource` is always inline `{ sql: "..." }` — never a string key
+    - SQL runs in DuckDB (DuckDB syntax, not ClickHouse)
+    - Use `{{source:key}}` to reference materialized data sources
+    - Template receives a single row — aggregate data in SQL
+    - Standard Markdown: `**bold**`, `## headings`, lists, GFM tables
+    - When linking to another dashboard, use canonical paths (RBAC grants bind to them)
+  </hard_constraints>
+</rules>
 
-```handlebars
-{{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
-```
-
-### Conditionals
-
-```handlebars
-{{#gt revenue_net 0}}
-Revenue is positive!
-{{/gt}}
-
-{{#gt unprofitable_share 0.2}}
-⚠️ Warning: Unprofitable campaigns above 20%.
-{{/gt}}
-```
-
-### Links
-
-```handlebars
-{{link "Open detailed report ->" to="/dashboards/product/samples/01-marketing" passFilters=true}}
-```
-
-`passFilters=true` forwards current filter state to the linked dashboard.
-
-## Styling
-
-```yaml
-style:
-  prose: true                           # Enable Tailwind prose for readable text
-  prose_size: sm | base | lg            # Text size
-  custom_css: "border-b pb-4 mb-4"     # Extra Tailwind classes
-```
-
-## Full example
-
-```yaml
-- id: campaign_summary_header
-  type: markdown
-  col_span: 12
-  row_span: 1
-  datasource:
-    sql: |
-      WITH base AS (
-        SELECT campaign, language, costs, annual_revenue
-        FROM {{source:total_by_ad}}
-      ),
-      lang AS (
-        SELECT language, SUM(costs) AS spend FROM base GROUP BY language
-      ),
-      totals AS (
-        SELECT SUM(costs) AS total_spend FROM base
-      ),
-      top_languages AS (
-        SELECT language, spend FROM lang ORDER BY spend DESC LIMIT 3
-      ),
-      top_languages_list AS (
-        SELECT LIST(STRUCT_PACK(
-          language := language,
-          share := spend / NULLIF((SELECT total_spend FROM totals), 0)
-        )) AS top_languages
-        FROM top_languages
-      )
-      SELECT (SELECT top_languages FROM top_languages_list) AS top_languages
-  template: |
-    ## 📊 Total by Campaign
-
-    Top languages by spend: {{#each top_languages}}{{language}} ({{percent share}}){{#unless @last}}, {{/unless}}{{/each}}
-  style:
-    prose: true
-    prose_size: base
-    custom_css: "border-b pb-4 mb-4"
-```
-
-## Rules
-
-- `datasource` is always inline `{ sql: "..." }`, never a string key
-- SQL runs in DuckDB (use DuckDB syntax, not ClickHouse)
-- Use `{{source:key}}` to reference materialized data sources
-- Template receives a single row — aggregate data in SQL
-- Markdown supports standard formatting: `**bold**`, `## headings`, lists, etc.
-- When linking to another dashboard, prefer canonical dashboard paths because RBAC grants bind to those resource paths.
+<see_also>
+  - `dashboard-datasources` — `{{source:key}}` references, inline widget datasources
+  - `dashboard-yaml-structure` — grid layout, section horizontal for KPI cards
+</see_also>
+</rule>

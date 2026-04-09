@@ -1,502 +1,264 @@
 # Dashboard Builder Guide
 
-Style conventions and patterns for building A7S Skipper dashboards. Follow these when creating or modifying dashboard YAML files.
-
-## Design-system source of truth
-
-- Use the shared A7S Skipper design system as the source of truth for styling decisions.
-- Prefer canonical chart palette names: `default`, `ocean`, `sunset`.
-- Prefer named design-system colors and semantic roles over custom hex values.
-- Keep semantic colors meaningful: success/warning/error/info are for status, not arbitrary decoration.
-- If an MCP client is available, inspect `skipper://design-system` and `skipper://design-system/palettes` before choosing widget colors.
-
-## RBAC v2 source of truth
-
-- Access is managed through organization-level grants that bind to dashboard resource paths.
-- Keep dashboard paths stable and intentional: renaming paths changes the resource names grants match against.
-- API tokens are org-scoped bearer credentials resolved through grants.
-
-## Root structure
-
-```text
-dashboards/<root>/
-  +layout.yaml                    # Root metadata (name, icon, order, default_dashboard)
-  _shared/
-    _filters.yaml                 # Shared filters (inherited by all dashboards in root)
-    _mappings.yaml                # Shared value mappings
-    _datasources.yaml             # Shared datasources (usually empty, extend per-dashboard)
-  01-dashboard-name/              # Directory-based dashboard
-    _tab.yaml                     # Dashboard meta (id, title, icon, description, ai)
-    # _dashboard.yaml             # Deprecated alias (validator emits warning)
-    01-tab-name.yaml              # Tab file
-    02-another-tab.yaml
-  02-another-dashboard/
-    _tab.yaml
-    01-tab.yaml
-```
-
-### Two valid patterns only
-
-1. Single flat tab file (everything in one YAML).
-2. Directory mode with strict split:
-   - `_tab.yaml` meta only
-   - `_shared/*.yaml` shared data definitions
-   - `NN-*.yaml` tab-content files (`sections: [...]`)
-
-In directory mode, `_tab.yaml` must not include `datasources` or `sections`.
-
-### Naming rules
-
-- Root folders and tab files: `NN-kebab-case` prefix, step of 10 for insertion room
-- Dashboard IDs: `snake_case` (e.g., `marketing`, `web5_health`)
-- Widget IDs: `kebab-case` (e.g., `daily-costs-table`, `revenue-losses-lang`)
-- Datasource keys: `snake_case` (e.g., `daily_marketing`, `by_media_source`)
-- Section IDs: `snake_case` (e.g., `overall`, `by_media_source`)
-
-## `+layout.yaml`
-
-```yaml
-name: Marketing
-icon: HatGlasses
-description: Marketing dashboards
-order: 1
-settings:
-  default_dashboard: 01-marketing
-```
-
-## `_tab.yaml` — dashboard metadata (`_dashboard.yaml` deprecated + warning)
-
-Every dashboard should have a rich AI block for the assistant:
-
-```yaml
-id: marketing
-title: Marketing
-description: Daily marketing performance — spend, revenue, ROI by source, language, campaign, ad
-icon: Megaphone
-ai:
-  roles:
-    preferred: buyer
-    extra: [owner, marketing_analyst]
-  dataset:
-    name: Marketing Performance
-    description: >
-      Daily marketing data: ad spend, revenue (gross/net, 3-day/full attribution), ROI,
-      conversion metrics (actions, trials, clicks, impressions), broken down by media source,
-      language, campaign, adset, and ad.
-    language: en
-    date_column: date
-    dimensions: [date, media_source, language, campaign, adset, ad]
-    metrics:
-      costs: SUM(costs)
-      revenue_net: SUM(revenue_net)
-      roi_net: (SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100
-      ecpa: SUM(costs) / NULLIF(SUM(action), 0)
-    business:
-      rules:
-        - "ROI Net below -45% is highlighted red — critical threshold."
-        - "Tab contains drill-down from daily overview → media source → language → campaign → ad."
-  welcome: "Ask about marketing spend, revenue, and ROI."
-  welcome_ru: "Задайте вопрос о маркетинговых расходах, выручке и ROI."
-  examples:
-    - "What is the total spend and ROI for the last 7 days?"
-    - "Which media source has the best ROI?"
-  examples_ru:
-    - "Какие общие расходы и ROI за последние 7 дней?"
-    - "Какой медиа-источник с лучшим ROI?"
-```
-
-### AI metadata checklist
-
-- `roles.preferred` + `roles.extra` — audience roles from root `_context.yaml` (`dashboards/<root>/_context.yaml`)
-- `dataset.name` — short name of what data is here
-- `dataset.description` — one paragraph explaining all dimensions and metrics available
-- `dataset.language` — default AI response language
-- `dataset.date_column` — primary time column
-- `dataset.dimensions` and `dataset.metrics` — enumerate all
-- `dataset.business.rules` — domain-specific thresholds, conventions, gotchas
-- `welcome` / `welcome_ru` — greeting for the AI chat
-- `examples` / `examples_ru` — 3–4 example questions (English + Russian)
-
-## Tab files
-
-Each tab file = one conceptual view. Minimal structure:
-
-```yaml
-title: By media source
-datasources:
-  by_media_source:
-    ai_hint: "Aggregated by media source. One row per source."
-    sql: |
-      SELECT media_source
-           , SUM(costs) AS costs
-           , SUM(revenue_net) AS revenue_net
-      FROM marts.marketing_creatives
-      WHERE ${filters.date_range('toDate(install_date)')}
-      GROUP BY media_source
-      ORDER BY costs DESC
-sections:
-  - id: by_media_source
-    ai_hint: "Compare performance across ad networks."
-    widgets:
-      - id: media-source-table
-        type: rich_table
-        ...
-```
-
-### No standalone section files
-
-- Do not create files shaped as top-level `id + widgets`.
-- Every tab content file must use top-level `sections: [...]`.
-- If you split one tab into multiple files inside a tab directory, each file is still a tab-content fragment and must have `sections`.
-
-### Pattern: drill-down tab hierarchy
-
-Structure tabs from high-level → granular:
-
-1. **Overall** — daily aggregated, no grouping
-2. **By dimension** — grouped by one dimension (media source, language)
-3. **By multiple** — grouped by 2–3 dimensions (source × language × campaign)
-4. **Chart tabs** — loss analysis, cohort, YoY comparison
-
-## SQL conventions
-
-```sql
--- Leading-comma alignment
-SELECT toDate(install_date) AS date
-     , SUM(costs) AS costs
-     , SUM(revenue_net) AS revenue_net
-FROM marts.marketing_creatives
-WHERE ${filters.date_range('toDate(install_date)')}
-GROUP BY date
-ORDER BY date DESC
-```
-
-- Leading commas for column list (easy to add/remove columns)
-- `${filters.<id>('column_expr')}` for ClickHouse-side filtering
-- `GROUP BY` by column name, not ordinal
-- `ORDER BY` primary metric `DESC` (or date `DESC` for time-series)
-- No trailing semicolons
-- Alias all expressions (`SUM(costs) AS costs`)
-
-## `ai_hint` everywhere
-
-Add `ai_hint` to datasources, sections, and widgets to help the AI assistant understand context:
-
-```yaml
-datasources:
-  daily_marketing:
-    ai_hint: "Daily aggregated marketing metrics across all sources. Pre-grouped by date."
-    sql: ...
-sections:
-  - id: overall
-    ai_hint: "Daily time-series table — one row per date, all key metrics."
-    widgets:
-      - id: daily-costs-table
-        ai_hint: "Main overview table with costs, revenue, ROI, conversion metrics."
-```
-
-## Layout best practices
-
-Prefer section-level `layout: horizontal` + `columns: N` over widget-level `col_span` for multi-column layouts:
-
-```yaml
-# Good — section controls layout
-sections:
-  - id: kpi-cards
-    layout: horizontal
-    columns: 3
-    widgets:
-      - id: revenue-card
-        type: markdown
-      - id: costs-card
-        type: markdown
-      - id: roi-card
-        type: markdown
-
-# Avoid — col_span on each widget
-sections:
-  - id: kpi-cards
-    widgets:
-      - id: revenue-card
-        type: markdown
-        col_span: 4
-      - id: costs-card
-        type: markdown
-        col_span: 4
-      - id: roi-card
-        type: markdown
-        col_span: 4
-```
-
-Reserve `col_span` for unequal-width layouts and wide tables (`col_span: 15`). Reserve `row_span` for multi-track charts that need extra height.
-
-## Rich table standards
-
-### Column order
-
-Always define `column_order` explicitly — it controls the display order independently of the `columns` array:
-
-```yaml
-column_order:
-  - date
-  - costs
-  - revenue_net
-  - roi_net
-  - action
-  - ecpa
-```
-
-### Column types pattern
-
-```yaml
-columns:
-  # Dimension — pinned left, with mapping if needed
-  - id: language
-    label: Lang
-    type: dimension
-    width: { type: auto }
-    pinned: left
-    mapping: { id: languages }
-
-  # Metric — aggregated, formatted
-  - id: costs
-    label: Costs
-    type: metric
-    aggregate: sum
-    format: { type: currency, decimals: 0 }
-
-  # Calculated — expression with NULLIF guard
-  - id: roi_net
-    label: ROI Net
-    type: calculated
-    expression: (SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100
-    format: { type: percent, decimals: 1, suffix: "%" }
-
-  # eCPA, CPC, CPM — always guard division by zero
-  - id: ecpa
-    label: eCPA
-    type: calculated
-    expression: SUM(costs) / NULLIF(SUM(action), 0)
-    format: { type: currency, decimals: 2 }
-```
-
-### Visualization defaults
-
-```yaml
-visualization:
-  zebra: true
-  zebra_rows: odd
-```
-
-### ROI conditional formatting
-
-Standard red/white/green color scale with -45% threshold:
-
-```yaml
-conditional_formatting:
-  - column: roi_net
-    type: color_scale
-    value_sql: |
-      CASE
-        WHEN costs > 2000 AND roi_net < -45 THEN -100
-        WHEN roi_net > 0 THEN 100
-        ELSE roi_net
-      END
-    steps:
-      - { value: -45, color: "#F7A2A2" }
-      - { value: -44.99, color: "#ffffff" }
-      - { value: 0, color: "#ffffff" }
-      - { value: 0.01, color: "#91E2AF" }
-```
-
-Apply this to all ROI columns (roi_net, roi_3_net, roi_30, roi_90, roi_180, roi_360).
-
-### Sorting and export
-
-Always enable:
-
-```yaml
-sorting:
-  enabled: true
-  default:
-    - id: costs
-      desc: true
-export:
-  enabled: true
-  formats: [csv, excel]
-```
-
-### Column filtering (for drill-down tabs)
-
-Enable on tabs with grouping where users need to search:
-
-```yaml
-filtering:
-  enabled: true
-  show_filter_row: true
-  global_search:
-    enabled: true
-    show_token_pills: true
-  columns:
-    - { id: language, type: select, multi: true }
-    - { id: media_source, type: select, multi: true }
-    - { id: campaign, type: text, match: contains }
-    - { id: costs, type: number, operator: ">" }
-    - { id: roi_net, type: number, operator: ">" }
-```
-
-## Chart patterns
-
-### Loss analysis (horizontal bar)
-
-```yaml
-- id: revenue-losses-lang
-  type: chart
-  col_span: 12
-  datasource: revenue_losses_by_lang
-  preset: loss_analysis
-  title: "Revenue Losses by Language"
-  series:
-    - metric: profit
-```
-
-### Cohort (cumulative curves)
-
-```yaml
-- id: cohort-cumulative-revenue
-  type: chart
-  col_span: 12
-  datasource: cohort_grow
-  preset: cohort
-  title: "Cohort grow by days"
-  series:
-    - metric: cumulative_revenue
-      type: line
-```
-
-### YoY comparison
-
-```yaml
-- id: revenue-net-yoy
-  type: chart
-  col_span: 12
-  datasource: yoy_metrics
-  preset: comparison
-  drill_down:
-    columns: [year, month, day]
-    default: month
-  title: "Revenue Net YoY"
-  series:
-    - metric: revenue_net
-      type: line
-```
-
-## Pivot table pattern
-
-```yaml
-- id: payment-pivot-table
-  type: rich_table
-  title: "Revenue by Payment System"
-  col_span: 15
-  datasource: payment_pivot
-  pivot:
-    rows:
-      - id: language
-        label: Language
-    columns:
-      - id: data_source
-        label: Data source
-        type: string
-    values:
-      - id: revenue_net
-        label: Revenue
-        aggregate: sum
-        format: { type: currency, decimals: 0 }
-    totals:
-      row: true
-      column: true
-    grand_total_label: Grand Total
-  columns:
-    - id: language
-      label: Language
-      type: dimension
-      pinned: left
-      width: { type: fixed, value: 120 }
-    - id: grand_total
-      label: Grand Total
-      type: metric
-      aggregate: sum
-      format: { type: currency, decimals: 0 }
-```
-
-## View datasources (DuckDB JOINs)
-
-When combining two base ClickHouse sources:
-
-```yaml
-overall_daily:
-  ai_hint: "Combined daily view: marketing metrics joined with payment source revenue."
-  type: view
-  sql: |
-    SELECT t.date, t.costs, t.revenue_net,
-      d.Appstore, d.Gplay, d.Stripe
-    FROM {{source:daily_marketing}} t
-    LEFT JOIN {{source:daily_ds_revenue}} d ON t.date = d.date
-    ORDER BY t.date DESC
-```
-
-## Shared filters
-
-Standard date range filter (root-level `_shared/_filters.yaml`):
-
-```yaml
-- id: date_range
-  type: date_range
-  column: install_date
-  presets:
-    - { id: today, label: Today, tag: Live }
-    - { id: yesterday, label: Yesterday, tag: Live }
-    - { id: last_7_days, label: "Last 7 days", tag: Rolling }
-    - { id: last_14_days, label: "Last 14 days", tag: Rolling }
-    - { id: last_30_days, label: "Last 30 days", tag: Rolling }
-    - { id: this_month, label: This month }
-    - { id: last_month, label: Last month }
-    - { id: last_6_months, label: "Last 6 months" }
-    - { id: last_12_months, label: "Last 12 months" }
-  default:
-    preset: last_14_days
-```
-
-## Checklist for new dashboards
-
-1. Create dashboard directory `NN-name/` inside the target root
-2. Write `_tab.yaml` with full AI metadata block (`_dashboard.yaml` is deprecated and triggers warning)
-3. Create tab files `01-overview.yaml`, `02-detail.yaml`, etc.
-4. Each tab-content file: `title`, `datasources` (with `ai_hint`), `sections` (with `ai_hint`)
-5. Rich tables: `column_order`, full column definitions, zebra, conditional formatting, sorting, export
-6. Charts: use appropriate preset (trend, loss_analysis, cohort, comparison)
-7. Add `ai_hint` to all datasources, sections, and widgets
-8. Run `a7s-skipper validate` to check schema compliance
-
-## MCP data exploration tools
-
-The `preview_query` and `explore_metric` MCP tools return query results through three delivery channels:
-
-| Channel | Rows | Format | Purpose |
-|---------|------|--------|---------|
-| `content[0].text` | ≤ 500 | JSON | LLM context (always present) |
-| `structuredContent` | ≤ 1,000 | JSON table | UI clients (Claude Desktop, Claude.ai) — zero tokens |
-| `resource_link` | ≤ 10,000 | CSV | Full data on demand via `skipper://query-results/{id}` |
-
-- Results with ≤ 500 rows are returned fully inline (no `resource_link`).
-- Results with > 500 rows are truncated in `content.text` with a `resource_link` to the full dataset.
-- The `resource_link` uses **lazy evaluation**: only query parameters are stored at tool-call time; the full query executes on the first `resources/read` request.
-- Cache TTL: 1 hour.
-- The `structuredContent` table always includes `sql` and `execution_time_ms` metadata.
-
-### explore_metric segmentation and filters
-
-`explore_metric` supports multi-dimension segmentation and dimension-based filters:
-
-- **`segment_by`** — pass a single string or an array of strings to group by one or more dimensions (e.g. `["data_source", "plan_duration"]`). Single string produces an `AS segment` column; array produces `AS segment_1`, `AS segment_2`, etc.
-- **`filters`** — an array of `{ dimension, operator, values }` objects to narrow results without grouping. Operators: `eq`, `neq`, `in`, `not_in`.
+<rule>
+<meta>
+  Style conventions, proven patterns, and checklists for building A7S Skipper dashboards.
+  This is the go-to reference for authoring best practices. For schema details, see the specific widget rules.
+</meta>
+
+<layout>
+  <grid_system>
+    **Always prefer section-level `layout: horizontal` + `columns: N`** for multi-column layouts.
+
+    ```yaml
+    # GOOD — section controls layout
+    sections:
+      - id: kpi-cards
+        layout: horizontal
+        columns: 3
+        widgets:
+          - id: revenue-card
+            type: markdown
+          - id: costs-card
+            type: markdown
+          - id: roi-card
+            type: markdown
+
+    # BAD — col_span on each widget
+    sections:
+      - id: kpi-cards
+        widgets:
+          - id: revenue-card
+            type: markdown
+            col_span: 4                    # Unnecessary
+          - id: costs-card
+            type: markdown
+            col_span: 4
+          - id: roi-card
+            type: markdown
+            col_span: 4
+    ```
+
+    Reserve `col_span` for: unequal widths, wide tables (`col_span: 15`).
+    Reserve `row_span` for: multi-track charts needing extra height (`row_span: 2+`).
+  </grid_system>
+</layout>
+
+<patterns>
+  <root_structure>
+    ```text
+    dashboards/<root>/
+      +layout.yaml                    # name, icon, order, default_dashboard
+      _context.yaml                   # AI roles, rules, glossary
+      _changelog.yaml                 # Product changelog
+      _shared/
+        _filters.yaml                 # Inherited by all dashboards
+        _mappings.yaml                # Value mappings
+        _datasources.yaml             # Shared datasources
+      01-dashboard-name/
+        _tab.yaml                     # Meta only (id, title, icon, description, ai)
+        _shared/
+          _datasources.yaml
+          _filters.yaml
+        01-overview.yaml
+        02-by-source.yaml
+    ```
+  </root_structure>
+
+  <tab_hierarchy>
+    Structure tabs from high-level to granular:
+    1. **Overview** — daily aggregated, no grouping
+    2. **By dimension** — grouped by one dimension (media source, language)
+    3. **By multiple** — grouped by 2–3 dimensions
+    4. **Charts** — loss analysis, cohort, YoY comparison
+  </tab_hierarchy>
+
+  <naming_conventions>
+    | Element | Convention | Example |
+    |---|---|---|
+    | Dashboard name | Human-readable, 2–4 words | "Marketing Performance" |
+    | Dashboard ID | `snake_case` | `marketing_performance` |
+    | Tab title | 1–3 words | "Overview", "By Channel" |
+    | Section ID | `snake_case` | `key_metrics`, `trend_analysis` |
+    | Widget ID | `kebab-case` | `daily-costs-table`, `revenue-chart` |
+    | Datasource key | `snake_case` | `daily_marketing`, `by_media_source` |
+    | All titles | Human-readable, capitalized | Never technical slugs |
+  </naming_conventions>
+
+  <sql_conventions>
+    ```sql
+    SELECT toDate(install_date) AS date
+         , SUM(costs) AS costs
+         , SUM(revenue_net) AS revenue_net
+    FROM marts.marketing_creatives
+    WHERE ${filters.date_range('toDate(install_date)')}
+    GROUP BY date
+    ORDER BY date DESC
+    ```
+
+    - Leading commas for column list
+    - `${filters.<id>('col')}` for ClickHouse-side filtering
+    - `GROUP BY` by column name, not ordinal
+    - `ORDER BY` primary metric `DESC`
+    - No trailing semicolons
+    - Alias all expressions (`SUM(costs) AS costs`)
+    - Always guard division: `NULLIF(denominator, 0)`
+  </sql_conventions>
+
+  <ai_metadata>
+    Every dashboard should have a rich AI block:
+
+    ```yaml
+    ai:
+      roles:
+        preferred: buyer
+        extra: [owner, marketing_analyst]
+      dataset:
+        name: Marketing Performance
+        description: >
+          Daily marketing data: spend, revenue, ROI, conversions
+          by media source, language, campaign, adset, ad.
+        language: en
+        date_column: date
+        dimensions: [date, media_source, language, campaign]
+        metrics:
+          costs: SUM(costs)
+          revenue_net: SUM(revenue_net)
+          roi_net: (SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100
+        business:
+          rules:
+            - "ROI Net below -45% is critical."
+      welcome: "Ask about marketing spend, revenue, and ROI."
+      examples: ["What is the total spend for the last 7 days?"]
+    ```
+
+    Checklist:
+    - `roles.preferred` + `roles.extra` from root `_context.yaml`
+    - `dataset.name` — short name
+    - `dataset.description` — one paragraph with all dimensions and metrics
+    - `dataset.date_column` — primary time column
+    - `dataset.dimensions` + `dataset.metrics` — enumerate all
+    - `dataset.business.rules` — thresholds, conventions
+    - `welcome` / `examples` in both EN and RU
+  </ai_metadata>
+
+  <ai_hints>
+    Add `ai_hint` to datasources, sections, and widgets:
+    ```yaml
+    datasources:
+      daily_marketing:
+        ai_hint: "Daily aggregated marketing metrics. Pre-grouped by date."
+    sections:
+      - id: overall
+        ai_hint: "Daily time-series — one row per date."
+        widgets:
+          - id: daily-costs-table
+            ai_hint: "Main overview table with costs, revenue, ROI."
+    ```
+  </ai_hints>
+
+  <rich_table_standards>
+    Always define:
+    - `column_order` explicitly
+    - `visualization: { zebra: true, zebra_rows: odd }`
+    - `sorting: { enabled: true, default: [{ id: costs, desc: true }] }`
+    - `export: { enabled: true, formats: [csv] }`
+    - Conditional formatting on ROI columns
+
+    Standard ROI color scale:
+    ```yaml
+    conditional_formatting:
+      - column: roi_net
+        type: color_scale
+        value_sql: |
+          CASE
+            WHEN costs > 2000 AND roi_net < -45 THEN -100
+            WHEN roi_net > 0 THEN 100
+            ELSE roi_net
+          END
+        steps:
+          - { value: -45, color: "#F7A2A2" }
+          - { value: -44.99, color: "#ffffff" }
+          - { value: 0, color: "#ffffff" }
+          - { value: 0.01, color: "#91E2AF" }
+    ```
+  </rich_table_standards>
+
+  <chart_patterns>
+    | Pattern | Preset | Key config |
+    |---|---|---|
+    | Time series | `trend` | `series: [{ metric, type: line }]` |
+    | YoY comparison | `comparison` | `drill_down: { columns: [year, month, day] }` |
+    | Category bars | `breakdown` | `sort: value_desc` |
+    | Profit/loss | `loss_analysis` | horizontal bars |
+    | Cohort curves | `cohort` | `series: [{ metric, type: line }]` |
+    | Stacked panels | `multi_track` | `row_span: 2`, series as tracks |
+  </chart_patterns>
+
+  <shared_filters>
+    Standard date range filter (root-level `_shared/_filters.yaml`):
+    ```yaml
+    - id: date_range
+      type: date_range
+      column: install_date
+      presets:
+        - { id: today, label: Today, tag: Live }
+        - { id: yesterday, label: Yesterday, tag: Live }
+        - { id: last_7_days, label: "Last 7 days", tag: Rolling }
+        - { id: last_14_days, label: "Last 14 days", tag: Rolling }
+        - { id: last_30_days, label: "Last 30 days", tag: Rolling }
+        - { id: this_month, label: This month }
+        - { id: last_month, label: Last month }
+      default:
+        preset: last_14_days
+    ```
+  </shared_filters>
+
+  <design_system>
+    - Use canonical chart palettes: `default`, `ocean`, `sunset`
+    - Prefer named design-system colors over custom hex values
+    - Semantic colors (success/warning/error/info) for status only
+    - If MCP available, inspect `skipper://design-system` and `skipper://design-system/palettes`
+  </design_system>
+</patterns>
+
+<rules>
+  <checklist>
+    Before delivering a dashboard:
+    - [ ] Every datasource has `ai_hint`
+    - [ ] Every section has `ai_hint`
+    - [ ] Dashboard has rich `ai` metadata block
+    - [ ] Filter macros used (no hardcoded dates)
+    - [ ] `{{source:key}}` references (no hardcoded table names)
+    - [ ] Rich tables: `column_order`, columns, `zebra: true`, sorting, export
+    - [ ] Charts use appropriate presets
+    - [ ] SQL validated via `validate_sql`
+    - [ ] Dashboard validated via `validate_dashboard`
+    - [ ] Design-system palettes used
+  </checklist>
+
+  <mcp_exploration>
+    `preview_query` and `explore_metric` deliver results in three channels:
+
+    | Channel | Rows | Format | Purpose |
+    |---|---|---|---|
+    | `content[0].text` | ≤ 500 | JSON | LLM context |
+    | `structuredContent` | ≤ 1,000 | JSON table | UI clients (zero tokens) |
+    | `resource_link` | ≤ 10,000 | CSV | Full data via `skipper://query-results/{id}` |
+
+    `explore_metric` supports:
+    - `segment_by` — string or array for multi-dimension grouping
+    - `filters` — `[{ dimension, operator, values }]` with `eq`, `neq`, `in`, `not_in`
+  </mcp_exploration>
+</rules>
+
+<see_also>
+  - `dashboard-yaml-structure` — hierarchy, directory mode, grid system
+  - `dashboard-datasources` — SQL, projections, views, filter macros
+  - `dashboard-filters` — filter types, sources, pools, hierarchy
+  - `dashboard-chart` — chart presets, series, tooltips, multi-track
+  - `dashboard-rich-table` — columns, grouping, pivot, data presets
+  - `dashboard-markdown` — template expressions, KPI cards
+  - `dashboard-mappings` — value mapping dictionaries
+</see_also>
+</rule>

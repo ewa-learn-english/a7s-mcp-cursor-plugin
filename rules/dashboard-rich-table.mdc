@@ -4,587 +4,531 @@ globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
 
-# Rich Table Widget
-
-The `rich_table` widget renders a full-featured data table with grouping, pivot, filtering, sorting, conditional formatting, and export.
-
-## Basic structure
-
-```yaml
-- id: my_table
-  type: rich_table
-  col_span: 15                          # Use >12 for wide tables with horizontal scroll
-  datasource: total_by_ad              # Key from datasources (or projection key)
-  # OR inline SQL (auto-creates a type: view datasource as {widget.id}__view):
-  # datasource:
-  #   sql: |
-  #     SELECT * FROM {{source:total_by_ad}} WHERE language = 'en'
-  title: My Table                       # Optional
-  columns: []                           # Required. Column definitions
-  column_order: [col1, col2]            # Optional. Display order
-  grouping: {}                          # Optional
-  pivot: {}                             # Optional
-  filtering: {}                         # Optional
-  sorting: {}                           # Optional
-  totals: {}                            # Optional. Grand total row (enabled by default)
-  selectable: true                      # Optional. Row selection (true | config object)
-  highlight: {}                         # Optional. Cross-highlight from another selectable widget
-  export: {}                            # Optional
-  conditional_formatting: []            # Optional
-  visualization: {}                     # Optional
-  layout: {}                            # Optional
-  data_presets: {}                      # Optional. Projection-first data presets
-```
-
-## Data presets (projection-first)
-
-Use `data_presets` to switch between system projections of the same table source. This is for **data shape/state**, not layout.
-
-Each preset needs `id`, `label`, and either `projection` (reference) or `sql` (inline). No "base" preset needed — the widget `datasource` is the default ("All") state.
-
-Use `{{source:__default_view}}` in inline SQL to reference the widget's own datasource:
-
-```yaml
-- id: campaign_table
-  type: rich_table
-  datasource: campaign_table__default_view    # "All" state
-  data_presets:
-    presets:
-      - id: dlo
-        label: DLO
-        sql: >                                # Inline SQL — filters on top of All
-          SELECT * FROM {{source:__default_view}}
-          WHERE lower(language) = 'dlo'
-          ORDER BY costs DESC
-      - id: high_roi
-        label: High ROI
-        description: Positive ROI campaigns   # Optional. Tooltip on hover
-        projection: campaign_table__view_high_roi
-        sorting:                              # Optional. Explicit sorting
-          - { id: roi, desc: true }
-      - id: big_spenders
-        label: Big Spenders
-        sql: >
-          SELECT * FROM {{source:__default_view}}
-          WHERE costs > 1000
-```
-
-Full config with all optional fields:
-
-```yaml
-  data_presets:
-    default_preset: high_roi           # Optional. Start with this preset instead of All
-    on_apply:                          # Optional. Behavior when preset is selected
-      clear_user_filters: true
-      clear_sorting: true
-      clear_search: true
-    presets:
-      - id: dlo
-        label: DLO
-        sql: >                         # {{source:__default_view}} = widget datasource
-          SELECT * FROM {{source:__default_view}} WHERE lang = 'dlo'
-      - id: high_roi
-        label: High ROI
-        projection: view_high_roi      # Reference to named projection
-```
-
-- `{{source:__default_view}}` auto-resolves to the widget's `datasource` at load time — works even when datasource is a projection
-- Inline SQL presets can reference projections directly (e.g. `{{source:table__default_view}}`) — the runtime resolves projection dependencies automatically
-- UI shows `[All] [DLO] [High ROI]` — "All" is always first, active when no preset selected
-- Preset bar is hidden until table data is loaded
-- Clicking "All" clears active preset state (share URL no longer stores `p[widgetId]`)
-- Preset apply switches widget datasource to `preset.projection` (or auto-generated key for inline `sql`)
-- User filters/search/sort are still applied on top of the selected projection
-- Sorting precedence: user manual sort -> preset sorting -> inferred from projection SQL `ORDER BY` -> widget default
-- Share link for widget includes active preset in URL context (`ctx`)
-- Smart search index automatically rebuilds when the underlying datasource changes (e.g. after preset switch)
-
-## Columns
-
-Three column types: `dimension`, `metric`, `calculated`.
-
-### Dimension (grouping/category columns)
-
-```yaml
-- id: language
-  label: Lang
-  type: dimension
-  width: { type: fixed, value: 60 }
-  pinned: left                          # left | right
-  mapping: { id: languages }            # Value mapping reference
-  normalize: capitalize                 # capitalize | uppercase | lowercase
-  overflow:
-    strategy: truncate                  # truncate | wrap | expand
-    tooltip: { enabled: true, maxWidth: 420 }
-  hidden: false                         # Hide column
-  description: "..."                    # Optional. Header tooltip text (also ai_hint fallback)
-  ai_hint: "..."                        # Optional. AI context hint (string or string[])
-```
-
-### Metric (aggregated numeric columns)
-
-```yaml
-- id: costs
-  label: Costs
-  type: metric
-  aggregate: sum                        # sum | avg | count | min | max
-  format: { type: currency, decimals: 0 }
-  description: "Total ad spend across all campaigns"
-  ai_hint: "Total ad spend — use SUM for aggregation"
-```
-
-### Calculated (expression-based columns)
-
-```yaml
-- id: roi
-  label: ROI
-  type: calculated
-  expression: "(SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100"
-  format: { type: percent, decimals: 0, suffix: "%" }
-```
-
-### Column format
-
-```yaml
-format:
-  type: number | currency | percent
-  decimals: 2                           # Optional
-  prefix: "$"                           # Optional
-  suffix: "%"                           # Optional
-  locale: "en-US"                       # Optional. BCP 47 locale tag (default: en-US)
-  abbreviate_above: 1000                # Optional. Min abs(value) to abbreviate (requires abbreviate_numbers)
-```
-
-### Column width
-
-```yaml
-# Simple fixed width
-width: 120
-
-# Detailed config
-width:
-  type: fixed | flex | auto
-  value: 120                            # For fixed: pixels. For flex: weight
-  min: 80                               # Optional. Min width in px
-  max: 400                              # Optional. Max width in px
-```
-
-### Column header tooltips
-
-Three levels of column header tooltips, each building on the previous:
-
-**Level 1 — Auto (truncation):** When the header label is truncated (ellipsis), hovering shows the full label. No config needed — always active.
-
-**Level 2 — Description:** Static text shown on hover, regardless of truncation. Also serves as `ai_hint` fallback when no explicit `ai_hint` is set.
-
-```yaml
-- id: ecpa
-  label: eCPA
-  type: calculated
-  expression: "SUM(costs) / NULLIF(SUM(action), 0)"
-  description: >-
-    Effective Cost Per Action.
-    Formula: SUM(costs) / NULLIF(SUM(action), 0)
-```
-
-**Level 3 — Programmable (SQL + template):** A template with a `context` block populated via DuckDB SQL on hover. `{{_self}}` resolves to the current active datasource (respects data presets).
-
-```yaml
-- id: roi
-  label: ROI
-  type: calculated
-  description: Return on Investment
-  tooltip:
-    context:
-      sql: |
-        SELECT
-          ROUND(AVG(roi_val), 1) as avg_roi,
-          COUNT(*) FILTER (WHERE roi_val > 0) as profitable,
-          COUNT(*) as total
-        FROM {{_self}}
-    template: |
-      **{{column.label}}**
-      {{column.description}}
-      ---
-      Avg: {{context.avg_roi}}%
-      Profitable: {{context.profitable}}/{{context.total}}
-```
-
-Template variables: `{{column.id}}`, `{{column.label}}`, `{{column.description}}`, `{{context.*}}`.
-
-## Grouping
-
-```yaml
-grouping:
-  enabled: true
-  levels: [language, media_source, campaign]   # Column ids for group hierarchy
-  subtotal_levels: [[language, media_source]]  # Show subtotals at these levels
-  default_expanded: false                      # Start collapsed
-  sticky:
-    active_group_headers: true                 # Sticky group headers on scroll
-    subtotals_under_grand: true                # Subtotals visible under grand total
-```
-
-## Pivot
-
-Pivot transforms rows into a cross-tabulation:
-
-```yaml
-pivot:
-  rows:
-    - id: plan_name
-      label: Type
-    - id: payment_source
-      label: Payment source
-  columns:
-    - id: day
-      label: Day
-      type: date                         # date | string | number
-      desc: true                          # pivot values sort direction
-  values:
-    - id: revenue_net
-      label: Revenue
-      aggregate: sum                     # sum | avg | count | min | max
-      format: { type: currency, decimals: 0 }
-  totals:
-    row: true                            # Show row totals
-    column: true                         # Show column totals
-  grand_total_label: "Total"             # Optional
-```
-
-When using pivot, also define `columns` for the static row dimensions and a `grand_total` metric column:
-
-```yaml
-columns:
-  - id: plan_name
-    label: Type
-    type: dimension
-    pinned: left
-  - id: payment_source
-    label: Payment source
-    type: dimension
-    pinned: left
-  - id: grand_total
-    label: Total
-    type: metric
-    aggregate: sum
-    format: { type: currency, decimals: 0 }
-  # Dynamic pivot columns are injected automatically
-```
-
-## Filtering (column-level)
-
-```yaml
-filtering:
-  enabled: true
-  show_filter_row: true                  # Show inline filter row under header
-  global_search: true                    # Enable smart search (shorthand)
-  columns:
-    - { id: language, type: select, multi: true }
-    - { id: media_source, type: select }
-    - { id: campaign, type: text, match: contains }   # contains | starts_with | ends_with
-    - { id: costs, type: number, operator: ">" }       # > | < | >= | <= | = | between
-    - { id: install_date, type: date, operator: between }
-```
-
-### Smart Table Search (`global_search`)
-
-Enable with `global_search: true` (or expanded form below). The search input appears in the table header and supports natural queries like `en fb cost>300 not nogti`.
-
-```yaml
-filtering:
-  global_search: true                    # Shorthand: enable with defaults
-
-  # Expanded form:
-  global_search:
-    enabled: true
-    show_token_pills: false              # Show parsed-tokens badge (default: false, overridable via DevTools)
-    token_pills_expanded: true           # Start pills tray expanded (default: true)
-```
-
-**Token types recognized:**
-
-| Token | Example | Resolves to |
-|-------|---------|-------------|
-| Keyword | `en` | Filter on matching dimension value (full-text search) |
-| Quoted phrase | `"hello world"` | Text search `ILIKE '%hello world%'` |
-| Negation | `not nogti`, `-nogti`, `!nogti` | Exclusion `NOT ILIKE '%nogti%'` |
-| Range | `costs>300`, `ecpa<=50` | Column filter with operator |
-| Spaced range | `costs > 300` | Auto-normalized to `costs>300` |
-
-**How it works:**
-
-1. On focus, a full-text search index is built from DuckDB dimension values
-2. Values are ranked by a composite priority: metric-rank (from sort metrics), row frequency, sort position, column order
-3. Fuzzy column matching resolves typos in range expressions (`cost>300` → `costs>300`)
-4. Resolved tokens are compiled to SQL WHERE clauses and injected as inline column filters (highlighted in blue)
-5. Results re-ranked by combining text relevance score with value priority
-
-**DevTools integration:**
-
-- `Cmd+Shift+D` / `Ctrl+Shift+D` opens DevTools (works in production)
-- **Search tab**: build indexes, inspect field weights, test queries with search hits and resolved tokens
-
-## Sorting
-
-```yaml
-sorting:
-  enabled: true
-  multi: true                            # Allow multi-column sort
-  default:                               # Optional. Initial sort order
-    - { id: costs, desc: true }
-```
-
-## Totals
-
-Grand total row is shown by default when there are metric columns. Controls:
-
-```yaml
-totals:
-  enabled: true                          # Default: true (show grand total row)
-  sticky: bottom                         # true (sticky top) | 'bottom' (sticky bottom, default) | false
-  label: "Total"                         # Optional. Label for grand total row
-```
-
-- Totals are always computed with `SUM` by default; uses the column's `aggregate` if specified.
-- Works with both flat (ungrouped) and grouped tables.
-- Set `enabled: false` to hide the grand total row entirely.
-- Legacy: `grouping.sticky.grand_total` is still supported as fallback.
-
-## Selectable rows
-
-Enable row selection with `selectable`. The selected row data is stored in a global selection store and can be consumed by other widgets via `${selection.*}` SQL templates or `{{selection.*}}` template expressions.
-
-```yaml
-# Simple: single-select, click to highlight
-selectable: true
-
-# Multi-select with checkboxes and select-all
-selectable:
-  multi: true
-  select_all: true
-
-# When consumers reference columns not in widget.columns (e.g. ${selection.X('experiment_id')})
-selectable:
-  columns: [id, name, experiment_id]
-```
-
-Identity uses the row index. By default, dimension columns are stored. Use `selectable.columns` when consumer projections reference columns not in `widget.columns` — the system also auto-computes required columns from `${selection.widget_id("col")}` references in projection SQL. Selection is cleared automatically when data re-fetches.
-
-A widget with `selectable` cannot also have `highlight` (mutually exclusive).
-
-### Cross-highlight
-
-Consumer tables can visually highlight rows matching another widget's selection. Values are extracted from the stored full rows by the specified `column`:
-
-```yaml
-highlight:
-  selection: campaigns_table           # Source widget id
-  column: campaign_id                  # Column to match (in both source rows and this table)
-
-# Multiple sources
-highlight:
-  - selection: campaigns_table
-    column: campaign_id
-  - selection: countries_table
-    column: country_code
-```
-
-### Selection templates in projections
-
-Consumer widgets reference selections in projection SQL. Column is always specified explicitly:
-
-```yaml
-projections:
-  filtered_by_selection:
-    sql: |
-      SELECT * FROM {{source:main}}
-      WHERE 1=1 ${selection.campaigns_table('campaign_id')}
-```
-
-| Template | Selected | Empty |
-|---|---|---|
-| `${selection.widget('col')}` | `AND col IN ('a','b')` | `AND 1=1` |
-| `${selection.widget('col').if_set}` | `AND col IN (...)` | `` (empty) |
-| `${selection.widget('col').value}` | `'first_val'` | `NULL` |
-| `${selection.widget('col').values}` | `'a', 'b'` | `` (empty) |
-
-## Export
-
-CSV download from the kebab menu (⋮) in the table header. Enabled by default for all tables — no config needed. Use `export` to customize or disable.
-
-```yaml
-# Disable export
-export:
-  enabled: false
-
-# Customize (all fields optional — shown with defaults)
-export:
-  enabled: true                          # Default: true (opt-out with false)
-  formats: [csv]                         # Supported: csv (excel planned)
-  include_group_rows: false              # Include group header rows in CSV
-  include_subtotals: false               # Include subtotal rows in CSV
-```
-
-Exports all rows matching current filters and sorting — not just the visible viewport.
-
-## Conditional formatting
-
-### Color scale
-
-```yaml
-conditional_formatting:
-  - column: roi
-    type: color_scale
-    palette: red_white_green             # red_white_green | red_yellow_green
-    apply_to: cell                       # cell | text
-    value_sql: |
-      CASE
-        WHEN costs > 2000 AND roi < 0 THEN -100
-        WHEN roi >= 60 THEN 100
-        ELSE roi
-      END
-    steps:
-      - { value: -100, color: "#f3b3b3" }
-      - { value: 0, color: "#f7f7f7" }
-      - { value: 60, color: "#9cc3b0" }
-```
-
-- `value_sql` is optional and supported for `color_scale` rules.
-- It is evaluated in table SQL and used as the color-scale input value for `data` rows.
-- If `value_sql` is not set (or returns non-numeric), the widget falls back to the raw column value.
-
-### Icon set
-
-```yaml
-  - column: status
-    type: icon_set
-    rules:
-      - { op: ">=", value: 80, icon: CheckCircle }
-      - { op: ">=", value: 50, icon: AlertTriangle }
-      - { op: "<", value: 50, icon: XCircle }
-```
-
-### Data bar
-
-```yaml
-  - column: costs
-    type: data_bar
-    min: 0
-    max: 10000
-    color: "#3b82f6"
-```
-
-## Visualization
-
-```yaml
-visualization:
-  density: compact | comfortable | spacious
-  row_height: small | medium | large | xlarge | 2xlarge
-  zebra: true
-  zebra_rows: even | odd
-  style: default | minimal | structured | bloomberg | vercel
-  style_switcher: true                   # Show style toggle in UI
-  abbreviate_numbers:                    # Optional. Abbreviate large numbers
-    enabled: true                        # Shorthand: all row types
-```
-
-### Abbreviate numbers
-
-Abbreviates numeric values using compact notation (1000 → $1K, 1500000 → $1.5M). Disabled by default. Configured inside `visualization`.
-
-```yaml
-# Enable for all row types
-visualization:
-  abbreviate_numbers:
-    enabled: true
-
-# Granular: per row type
-visualization:
-  abbreviate_numbers:
-    rows: true                          # Data rows
-    subtotals: true                     # Subtotal rows
-    totals: false                       # Grand total row
-```
-
-- `enabled: true` is shorthand for `{ rows: true, subtotals: true, totals: true }`
-- Applies only to numeric columns (`metric`, `calculated`)
-- Full value is shown on hover (tooltip)
-- Uses `Intl.NumberFormat` with `notation: 'compact'` (K, M, B suffixes)
-- Respects `locale` from column `format` (default: `en-US`)
-- Per-column `abbreviate_above` threshold — values with `abs(value) < threshold` stay fully formatted
-
-## Actions with skill reference
-
-Actions can trigger write skills via the `skill` field:
-
-```yaml
-actions:
-  pause:
-    label: Pause Campaign
-    icon: pause
-    quick: true
-    when: "effective_status = 'ACTIVE'"
-    skill: pause_campaign           # Datasource key for write skill
-
-  archive:
-    label: Archive Campaign
-    icon: archive
-    destructive: true               # Shows "Are you sure?" dialog first
-    skill: archive_campaign
-```
-
-- `skill` — references a write skill datasource key (UPDATE/INSERT SQL)
-- `destructive: true` — client-side confirmation dialog before executing
-- When row is mutating (shimmer ON), all actions are disabled
-
-## Editable columns with skill reference
-
-Editable columns can trigger write skills on save:
-
-```yaml
-- id: daily_budget
-  label: Daily Budget
-  type: metric
-  aggregate: sum
-  format: { type: currency, decimals: 2 }
-  editable: true
-  skill: update_campaign_budget     # Write skill executed on save
-```
-
-When `skill` is set, the edit save triggers `useSkillWrite.execute()` instead of just logging.
-
-## Row shimmer during mutation
-
-When a write skill is executing, the affected row shows a pulse animation (`animate-pulse opacity-70`). During this state:
-- All action buttons are disabled
-- Editable cells are read-only
-- The row is visually dimmed to indicate "in progress"
-
-## Layout presets & responsive
-
-```yaml
-layout:
-  default_preset: comfortable
-  show_reset: false
-  presets:
-    - id: compact
-      label: Compact
+<rule>
+<meta>
+  This rule covers the `rich_table` widget: columns, grouping, pivot, filtering, sorting, conditional formatting, data presets, actions, export, and visualization.
+  Activate when creating or editing rich_table widgets in dashboard YAML.
+</meta>
+
+<schema>
+  <rich_table_widget>
+    ```yaml
+    - id: my_table
+      type: rich_table
+      col_span: 15                          # >12 for wide tables with horizontal scroll
+      datasource: total_by_ad              # Key, projection name, or inline { sql }
+      title: My Table                       # Optional
+      columns: []                           # Required. Column definitions
+      column_order: [col1, col2]            # Optional. Display order
+      grouping: {}                          # Optional
+      pivot: {}                             # Optional
+      filtering: {}                         # Optional
+      sorting: {}                           # Optional
+      totals: {}                            # Optional. Grand total row
+      selectable: true                      # Optional. Row selection
+      highlight: {}                         # Optional. Cross-highlight
+      export: {}                            # Optional
+      conditional_formatting: []            # Optional
+      visualization: {}                     # Optional
+      layout: {}                            # Optional. Presets and responsive
+      data_presets: {}                      # Optional. Projection-first presets
+      actions: {}                           # Optional. Row actions
+    ```
+  </rich_table_widget>
+</schema>
+
+<options>
+  <column_types>
+    Three column types (discriminated union on `type`):
+
+    | Type | Purpose | Extra fields |
+    |---|---|---|
+    | `dimension` | Categorical/text | (base fields only) |
+    | `metric` | Aggregated numeric | `aggregate: sum \| avg \| count \| min \| max` |
+    | `calculated` | Expression-based | `expression: "SQL expression"` |
+  </column_types>
+
+  <column_base_fields>
+    ```yaml
+    - id: language                          # Required
+      label: Lang                           # Optional
+      type: dimension                       # Required
+      width: { type: fixed, value: 60 }    # Optional. Number or { type, value, min, max }
+      pinned: left                          # Optional. left | right
+      truncate: true                        # Optional
+      hidden: false                         # Optional. Hide column
+      mapping: { id: languages }            # Optional. Value mapping ref
+      normalize: capitalize                 # Optional. capitalize | uppercase | lowercase
+      format: {}                            # Optional. Number formatting
+      editable: true                        # Optional. Inline editing
+      skill: update_budget                  # Optional. Write skill on save
+      description: "..."                    # Optional. Header tooltip (also ai_hint fallback)
+      ai_hint: "..."                        # Optional. AI context
+      tooltip: {}                           # Optional. Programmable tooltip
+      overflow:                             # Optional
+        strategy: truncate                  #   truncate | wrap | expand
+        tooltip: { enabled: true, maxWidth: 420 }
+    ```
+  </column_base_fields>
+
+  <column_format>
+    ```yaml
+    format:
+      type: number | currency | percent | timestamp | trend
+      decimals: 2                           # Optional
+      prefix: "$"                           # Optional
+      suffix: "%"                           # Optional
+      locale: "en-US"                       # Optional. BCP 47 locale tag
+      abbreviate_above: 1000               # Optional. Min value to abbreviate
+      pattern: "yyyy-MM-dd HH:mm"          # Optional. Timestamp format pattern
+    ```
+
+    **5 format types:**
+    | Type | Description |
+    |---|---|
+    | `number` | Numeric with locale formatting |
+    | `currency` | Currency with $ prefix |
+    | `percent` | Percentage (×100 + %) |
+    | `timestamp` | Date/time with optional `pattern` |
+    | `trend` | Trend indicator (up/down arrows) |
+  </column_format>
+
+  <column_width>
+    ```yaml
+    # Simple fixed width
+    width: 120
+
+    # Detailed config
+    width:
+      type: fixed | flex | auto
+      value: 120                            # fixed: pixels, flex: weight
+      min: 80                               # Optional. Min px
+      max: 400                              # Optional. Max px
+    ```
+  </column_width>
+
+  <visualization_styles>
+    | Style | Description |
+    |---|---|
+    | `default` | Standard table |
+    | `minimal` | Clean, minimal borders |
+    | `structured` | Grid-heavy structure |
+    | `bloomberg` | Bloomberg terminal style |
+    | `vercel` | Vercel dashboard style |
+  </visualization_styles>
+
+  <density_options>
+    `compact` | `comfortable` | `spacious`
+  </density_options>
+
+  <row_heights>
+    `small` | `medium` | `large` | `xlarge` | `2xlarge`
+  </row_heights>
+
+  <conditional_formatting_types>
+    | Type | Description | Key fields |
+    |---|---|---|
+    | `color_scale` | Gradient colors | `palette`, `steps[]`, `value_sql?`, `apply_to: cell\|text` |
+    | `icon_set` | Rule-based icons | `rules: [{ op, value, icon }]` |
+    | `data_bar` | In-cell bars | `min?`, `max?`, `color?` |
+  </conditional_formatting_types>
+</options>
+
+<examples>
+  <columns_full>
+    ```yaml
+    columns:
+      # Dimension — pinned, with mapping
+      - id: language
+        label: Lang
+        type: dimension
+        width: { type: auto }
+        pinned: left
+        mapping: { id: languages }
+
+      # Metric — aggregated, formatted
+      - id: costs
+        label: Costs
+        type: metric
+        aggregate: sum
+        format: { type: currency, decimals: 0 }
+        description: "Total ad spend across all campaigns"
+
+      # Calculated — expression with NULLIF guard
+      - id: roi_net
+        label: ROI Net
+        type: calculated
+        expression: "(SUM(revenue_net) - SUM(costs)) / NULLIF(SUM(costs), 0) * 100"
+        format: { type: percent, decimals: 1, suffix: "%" }
+
+      # Timestamp column
+      - id: updated_at
+        label: Last Updated
+        type: dimension
+        format: { type: timestamp, pattern: "yyyy-MM-dd HH:mm" }
+    ```
+  </columns_full>
+
+  <data_presets>
+    ```yaml
+    - id: campaign_table
+      type: rich_table
+      datasource: campaign_table__default_view
+      data_presets:
+        default_preset: high_roi              # Optional. Start with this preset
+        on_apply:                             # Optional
+          clear_user_filters: true
+          clear_sorting: true
+          clear_search: true
+        presets:
+          - id: dlo
+            label: DLO
+            sql: >
+              SELECT * FROM {{source:__default_view}}
+              WHERE lower(language) = 'dlo'
+              ORDER BY costs DESC
+          - id: high_roi
+            label: High ROI
+            description: Positive ROI campaigns
+            projection: campaign_table__view_high_roi
+            sorting: [{ id: roi, desc: true }]
+    ```
+
+    - `{{source:__default_view}}` resolves to widget datasource
+    - UI: `[All] [DLO] [High ROI]` — "All" is widget datasource
+    - Smart search index rebuilds automatically on preset switch
+  </data_presets>
+
+  <grouping>
+    ```yaml
+    grouping:
+      enabled: true
+      levels: [language, media_source, campaign]
+      subtotal_levels: [[language, media_source]]
+      default_expanded: false
+      sticky:
+        active_group_headers: true
+        subtotals_under_grand: true
+    ```
+  </grouping>
+
+  <pivot>
+    ```yaml
+    pivot:
+      rows:
+        - id: plan_name
+          label: Type
+        - id: payment_source
+          label: Payment source
+      columns:
+        - id: day
+          label: Day
+          type: date
+          desc: true
+      values:
+        - id: revenue_net
+          label: Revenue
+          aggregate: sum
+          format: { type: currency, decimals: 0 }
+      totals: { row: true, column: true }
+      grand_total_label: "Total"
+    ```
+
+    Define `columns` for static row dimensions + `grand_total` metric:
+    ```yaml
+    columns:
+      - id: plan_name
+        label: Type
+        type: dimension
+        pinned: left
+      - id: grand_total
+        label: Total
+        type: metric
+        aggregate: sum
+        format: { type: currency, decimals: 0 }
+    ```
+  </pivot>
+
+  <filtering>
+    ```yaml
+    filtering:
+      enabled: true
+      show_filter_row: true
+      global_search: true                    # Or expanded: { enabled: true, show_token_pills: false }
+      columns:
+        - { id: language, type: select, multi: true }
+        - { id: media_source, type: select }
+        - { id: campaign, type: text, match: contains }
+        - { id: costs, type: number, operator: ">" }
+        - { id: install_date, type: date, operator: between }
+    ```
+
+    Smart search tokens: `en` (keyword), `"hello world"` (quoted), `not nogti` (negation), `costs>300` (range).
+  </filtering>
+
+  <selectable_and_highlight>
+    ```yaml
+    # Source widget — selectable
+    - id: campaigns_table
+      type: rich_table
+      selectable:
+        multi: true
+        select_all: true
+        columns: [id, name, experiment_id]  # For consumer SQL refs
+
+    # Consumer widget — highlight
+    - id: details_table
+      type: rich_table
+      highlight:
+        selection: campaigns_table
+        column: campaign_id
+
+    # Multiple highlight sources
+    highlight:
+      - selection: campaigns_table
+        column: campaign_id
+      - selection: countries_table
+        column: country_code
+    ```
+    `selectable` and `highlight` are mutually exclusive on the same widget.
+  </selectable_and_highlight>
+
+  <actions>
+    ```yaml
+    actions:
+      pause:
+        label: Pause Campaign
+        icon: pause
+        quick: true                          # Show inline, not in dropdown
+        when: "effective_status = 'ACTIVE'"  # Conditional visibility
+        skill: pause_campaign                # Write skill datasource key
+      archive:
+        label: Archive Campaign
+        icon: archive
+        destructive: true                    # Confirmation dialog first
+        skill: archive_campaign
+    ```
+  </actions>
+
+  <editable_columns>
+    ```yaml
+    - id: daily_budget
+      label: Daily Budget
+      type: metric
+      aggregate: sum
+      format: { type: currency, decimals: 2 }
+      editable: true
+      skill: update_campaign_budget
+    ```
+  </editable_columns>
+
+  <column_tooltips>
+    Three levels:
+
+    **Level 1 — Auto:** Truncated headers show full label. No config needed.
+
+    **Level 2 — Static:**
+    ```yaml
+    - id: ecpa
+      label: eCPA
+      type: calculated
+      expression: "SUM(costs) / NULLIF(SUM(action), 0)"
+      description: "Effective Cost Per Action."
+    ```
+
+    **Level 3 — Programmable:**
+    ```yaml
+    - id: roi
+      label: ROI
+      type: calculated
+      description: Return on Investment
+      tooltip:
+        context:
+          sql: |
+            SELECT
+              ROUND(AVG(roi_val), 1) as avg_roi,
+              COUNT(*) FILTER (WHERE roi_val > 0) as profitable,
+              COUNT(*) as total
+            FROM {{_self}}
+        template: |
+          **{{column.label}}**
+          {{column.description}}
+          ---
+          Avg: {{context.avg_roi}}%
+          Profitable: {{context.profitable}}/{{context.total}}
+    ```
+    `{{_self}}` resolves to current active datasource (respects data presets).
+    Template vars: `{{column.id}}`, `{{column.label}}`, `{{column.description}}`, `{{context.*}}`.
+  </column_tooltips>
+
+  <conditional_formatting>
+    ```yaml
+    conditional_formatting:
+      # Color scale with custom value_sql
+      - column: roi
+        type: color_scale
+        palette: red_white_green
+        apply_to: cell
+        value_sql: |
+          CASE
+            WHEN costs > 2000 AND roi < 0 THEN -100
+            WHEN roi >= 60 THEN 100
+            ELSE roi
+          END
+        steps:
+          - { value: -100, color: "#f3b3b3" }
+          - { value: 0, color: "#f7f7f7" }
+          - { value: 60, color: "#9cc3b0" }
+
+      # Icon set
+      - column: status
+        type: icon_set
+        rules:
+          - { op: ">=", value: 80, icon: CheckCircle }
+          - { op: ">=", value: 50, icon: AlertTriangle }
+          - { op: "<", value: 50, icon: XCircle }
+
+      # Data bar
+      - column: costs
+        type: data_bar
+        min: 0
+        max: 10000
+        color: "#3b82f6"
+    ```
+  </conditional_formatting>
+
+  <visualization>
+    ```yaml
+    visualization:
       density: compact
-      row_height: small
-      columns:
-        - id: campaign
-          width: { type: flex, value: 2, min: 180, max: 420 }
-        - id: costs
-          width: { type: fixed, value: 110 }
-    - id: comfortable
-      label: Comfortable
-      density: comfortable
-      row_height: large
-      columns:
-        - id: campaign
-          width: { type: flex, value: 3, min: 220, max: 520 }
-  responsive:
-    - max_width: 1024
-      preset: compact                    # Switch preset on smaller screens
-```
+      row_height: medium
+      zebra: true
+      zebra_rows: odd
+      style: default
+      style_switcher: true
+      abbreviate_numbers:
+        rows: true
+        subtotals: true
+        totals: false
+    ```
+  </visualization>
+
+  <export>
+    CSV download enabled by default. Opt-out with `export: { enabled: false }`.
+
+    ```yaml
+    export:
+      enabled: true
+      formats: [csv]
+      include_group_rows: false
+      include_subtotals: false
+    ```
+  </export>
+
+  <sorting>
+    ```yaml
+    sorting:
+      enabled: true
+      multi: true
+      default:
+        - { id: costs, desc: true }
+    ```
+  </sorting>
+
+  <totals>
+    ```yaml
+    totals:
+      enabled: true                          # Default: true
+      sticky: bottom                         # true (top) | 'bottom' (default) | false
+      label: "Total"
+    ```
+  </totals>
+
+  <layout_presets>
+    ```yaml
+    layout:
+      default_preset: comfortable
+      show_reset: false
+      presets:
+        - id: compact
+          label: Compact
+          density: compact
+          row_height: small
+          columns:
+            - id: campaign
+              width: { type: flex, value: 2, min: 180, max: 420 }
+        - id: comfortable
+          label: Comfortable
+          density: comfortable
+          row_height: large
+      responsive:
+        - max_width: 1024
+          preset: compact
+    ```
+  </layout_presets>
+</examples>
+
+<layout>
+  <wide_tables>
+    Use `col_span: 15` for wide tables with horizontal scroll.
+  </wide_tables>
+
+  <side_by_side_tables>
+    Use section `layout: horizontal` + `columns: 2` for side-by-side tables:
+
+    ```yaml
+    sections:
+      - id: comparison
+        layout: horizontal
+        columns: 2
+        widgets:
+          - id: left-table
+            type: rich_table
+            datasource: source_a
+            columns: [...]
+          - id: right-table
+            type: rich_table
+            datasource: source_b
+            columns: [...]
+    ```
+  </side_by_side_tables>
+</layout>
+
+<patterns>
+  <selection_sql>
+    Consumer widgets reference selections in projection SQL:
+
+    | Template | Selected | Empty |
+    |---|---|---|
+    | `${selection.widget('col')}` | `AND col IN ('a','b')` | `AND 1=1` |
+    | `${selection.widget('col').if_set}` | `AND col IN (...)` | `` (empty) |
+    | `${selection.widget('col').value}` | `'first_val'` | `NULL` |
+    | `${selection.widget('col').values}` | `'a', 'b'` | `` (empty) |
+  </selection_sql>
+
+  <row_shimmer>
+    During write skill execution: pulse animation, all actions disabled, editable cells read-only.
+    After success: source invalidated, background re-fetch, fresh data loaded.
+  </row_shimmer>
+</patterns>
+
+<rules>
+  <hard_constraints>
+    - `selectable` and `highlight` are mutually exclusive on the same widget
+    - Export is enabled by default — opt-out with `export: { enabled: false }`
+    - Totals use column `aggregate` if specified, else SUM
+    - `value_sql` in conditional formatting is optional — evaluated for `data` rows only
+    - Smart search index rebuilds automatically when datasource changes (preset switch, filter)
+    - Sorting precedence: user manual → preset sorting → projection `ORDER BY` → widget default
+    - Always guard division by zero in calculated expressions: `NULLIF(denominator, 0)`
+  </hard_constraints>
+</rules>
+
+<see_also>
+  - `dashboard-datasources` — datasource references, projections, selection macros
+  - `dashboard-mappings` — value mapping dictionaries for columns
+  - `dashboard-filters` — inline column filters, smart search interaction
+  - `dashboard-yaml-structure` — grid layout, col_span for wide tables
+  - `dashboard-builder-guide` — rich table standards, column patterns
+</see_also>
+</rule>
