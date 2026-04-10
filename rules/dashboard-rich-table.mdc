@@ -56,7 +56,7 @@ alwaysApply: false
       width: { type: fixed, value: 60 }    # Optional. Number or { type, value, min, max }
       pinned: left                          # Optional. left | right
       truncate: true                        # Optional
-      hidden: false                         # Optional. Hide column
+      hidden: false                         # Optional. Hide column (auto-hidden if 100% null)
       mapping: { id: languages }            # Optional. Value mapping ref
       normalize: capitalize                 # Optional. capitalize | uppercase | lowercase
       format: {}                            # Optional. Number formatting
@@ -75,13 +75,18 @@ alwaysApply: false
     ```yaml
     format:
       type: number | currency | percent | timestamp | trend
-      decimals: 2                           # Optional
+      decimals: 2                           # Optional. Auto-detected from data when omitted
       prefix: "$"                           # Optional
       suffix: "%"                           # Optional
       locale: "en-US"                       # Optional. BCP 47 locale tag
       abbreviate_above: 1000               # Optional. Min value to abbreviate
       pattern: "yyyy-MM-dd HH:mm"          # Optional. Timestamp format pattern
     ```
+
+    **Adaptive decimals:** When `decimals` is not set, the system automatically detects
+    the optimal precision from the data using DuckDB column profiling. This provides
+    Excel-like adaptive formatting — integers display as integers, decimals show the
+    minimum precision needed to represent all values accurately (up to 6 digits).
 
     **5 format types:**
     | Type | Description |
@@ -128,9 +133,12 @@ alwaysApply: false
   <conditional_formatting_types>
     | Type | Description | Key fields |
     |---|---|---|
-    | `color_scale` | Gradient colors | `palette`, `steps[]`, `value_sql?`, `apply_to: cell\|text` |
+    | `color_scale` | Gradient colors | `palette`, `steps[]` or `steps: auto`, `value_sql?`, `apply_to: cell\|text` |
     | `icon_set` | Rule-based icons | `rules: [{ op, value, icon }]` |
     | `data_bar` | In-cell bars | `min?`, `max?`, `color?` |
+
+    **Auto color scale:** Use `steps: auto` to automatically generate a 5-point gradient
+    from data percentiles (min → P25 → P50 → P75 → max). Palette is applied automatically.
   </conditional_formatting_types>
 </options>
 
@@ -380,6 +388,12 @@ alwaysApply: false
           - { value: 0, color: "#f7f7f7" }
           - { value: 60, color: "#9cc3b0" }
 
+      # Auto color scale — steps generated from data percentiles
+      - column: revenue
+        type: color_scale
+        palette: red_yellow_green
+        steps: auto
+
       # Icon set
       - column: status
         type: icon_set
@@ -521,6 +535,10 @@ alwaysApply: false
     - Smart search index rebuilds automatically when datasource changes (preset switch, filter)
     - Sorting precedence: user manual → preset sorting → projection `ORDER BY` → widget default
     - Always guard division by zero in calculated expressions: `NULLIF(denominator, 0)`
+    - Column profiling runs in parallel with main query — provides auto-decimals, percentiles, null/zero ratios, cardinality
+    - Columns with 100% null values are auto-hidden unless explicitly set with `hidden: false`
+    - `steps: auto` in `color_scale` generates gradient from data percentiles (min → P25 → P50 → P75 → max)
+    - `decimals` priority: YAML config > auto-detected from data > type default (currency=2, number=0, percent=0)
   </hard_constraints>
 </rules>
 

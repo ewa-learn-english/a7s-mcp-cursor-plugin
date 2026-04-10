@@ -165,6 +165,11 @@
     - `export: { enabled: true, formats: [csv] }`
     - Conditional formatting on ROI columns
 
+    Formatting best practices:
+    - Omit `decimals` from column format to get adaptive auto-detection from data
+    - Use `steps: auto` for simple color scales — auto-generates gradient from data percentiles
+    - Columns with 100% null values are auto-hidden — set `hidden: false` to override
+
     Standard ROI color scale:
     ```yaml
     conditional_formatting:
@@ -181,6 +186,15 @@
           - { value: -44.99, color: "#ffffff" }
           - { value: 0, color: "#ffffff" }
           - { value: 0.01, color: "#91E2AF" }
+    ```
+
+    Auto color scale (for simple metrics):
+    ```yaml
+    conditional_formatting:
+      - column: revenue
+        type: color_scale
+        palette: red_yellow_green
+        steps: auto
     ```
   </rich_table_standards>
 
