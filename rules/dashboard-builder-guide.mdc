@@ -168,7 +168,8 @@
     Formatting best practices:
     - Omit `decimals` from column format to get adaptive auto-detection from data
     - Use `steps: auto` for simple color scales — auto-generates gradient from data percentiles
-    - Columns with 100% null values are auto-hidden — set `hidden: false` to override
+    - Choose palette from design system: diverging (`red_green`, `blue_orange`, `purple_teal`, `red_yellow_green`) or sequential (`green`, `blue`, `purple`, `orange`, `gray`)
+    - Use `auto_hide: true` on optional columns that may be empty — hides when 100% null (opt-in, disabled by default)
 
     Standard ROI color scale:
     ```yaml

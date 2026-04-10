@@ -56,7 +56,8 @@ alwaysApply: false
       width: { type: fixed, value: 60 }    # Optional. Number or { type, value, min, max }
       pinned: left                          # Optional. left | right
       truncate: true                        # Optional
-      hidden: false                         # Optional. Hide column (auto-hidden if 100% null)
+      hidden: false                         # Optional. Hide column
+      auto_hide: true                        # Optional. Auto-hide when 100% null
       mapping: { id: languages }            # Optional. Value mapping ref
       normalize: capitalize                 # Optional. capitalize | uppercase | lowercase
       format: {}                            # Optional. Number formatting
@@ -138,7 +139,12 @@ alwaysApply: false
     | `data_bar` | In-cell bars | `min?`, `max?`, `color?` |
 
     **Auto color scale:** Use `steps: auto` to automatically generate a 5-point gradient
-    from data percentiles (min → P25 → P50 → P75 → max). Palette is applied automatically.
+    from data percentiles (min → P25 → P50 → P75 → max).
+
+    **Palette options (design system):**
+    - Diverging: `red_green` (default), `blue_orange`, `purple_teal`, `red_yellow_green`
+    - Sequential: `green`, `blue`, `purple`, `orange`, `gray`
+    - Backward-compatible aliases: `red_white_green` → `red_green`
   </conditional_formatting_types>
 </options>
 
@@ -394,6 +400,12 @@ alwaysApply: false
         palette: red_yellow_green
         steps: auto
 
+      # Auto color scale with sequential palette
+      - column: score
+        type: color_scale
+        palette: blue
+        steps: auto
+
       # Icon set
       - column: status
         type: icon_set
@@ -536,8 +548,9 @@ alwaysApply: false
     - Sorting precedence: user manual → preset sorting → projection `ORDER BY` → widget default
     - Always guard division by zero in calculated expressions: `NULLIF(denominator, 0)`
     - Column profiling runs in parallel with main query — provides auto-decimals, percentiles, null/zero ratios, cardinality
-    - Columns with 100% null values are auto-hidden unless explicitly set with `hidden: false`
+    - `auto_hide: true` on a column enables auto-hiding when 100% of values are null (disabled by default)
     - `steps: auto` in `color_scale` generates gradient from data percentiles (min → P25 → P50 → P75 → max)
+    - `palette` in `color_scale` accepts design-system names: `red_green`, `blue_orange`, `purple_teal`, `red_yellow_green`, `green`, `blue`, `purple`, `orange`, `gray`
     - `decimals` priority: YAML config > auto-detected from data > type default (currency=2, number=0, percent=0)
   </hard_constraints>
 </rules>
