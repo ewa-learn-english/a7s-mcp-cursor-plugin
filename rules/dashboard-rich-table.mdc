@@ -553,6 +553,26 @@ alwaysApply: false
     - `palette` in `color_scale` accepts design-system names: `red_green`, `blue_orange`, `purple_teal`, `red_yellow_green`, `green`, `blue`, `purple`, `orange`, `gray`
     - `decimals` priority: YAML config > auto-detected from data > type default (currency=2, number=0, percent=0)
   </hard_constraints>
+
+  <keyboard_navigation>
+    Rich tables support full keyboard navigation when the table container has focus:
+
+    | Key | Action |
+    |-----|--------|
+    | `↑` / `↓` | Move focus between rows |
+    | `Enter` | Select / expand focused row |
+    | `Space` | Toggle checkbox (when `selectable.multi` is enabled) |
+    | `Home` / `End` | Jump to first / last row |
+    | `Page Up` / `Page Down` | Jump by viewport height (adaptive to density) |
+    | `s` | Focus SmartSearch input (when `global_search` is enabled) |
+
+    ARIA attributes (`role="grid"`, `aria-activedescendant`) are set automatically.
+    The focused row shows a visible focus ring using `--border-focus` from the design system.
+    Virtual scroll keeps the focused row in the viewport via `scrollToIndex`.
+
+    Keyboard navigation requires no YAML configuration — it is always available.
+    The `s` shortcut only activates when `filtering.global_search` is enabled on the widget.
+  </keyboard_navigation>
 </rules>
 
 <see_also>

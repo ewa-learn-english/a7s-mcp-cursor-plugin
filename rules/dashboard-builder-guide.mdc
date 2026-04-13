@@ -267,6 +267,38 @@
   </mcp_exploration>
 </rules>
 
+<keyboard_shortcuts>
+  Dashboards support a comprehensive keyboard-first navigation experience:
+
+  **Global shortcuts** (available on any page):
+  | Shortcut | Action |
+  |----------|--------|
+  | `⌘K` / `Ctrl+K` | Open command palette — search dashboards, tabs, actions |
+  | `?` | Show keyboard shortcuts reference |
+  | `r` | Refresh all datasources on current dashboard |
+  | `f` | Focus the filter panel |
+  | `t` | Toggle light/dark theme |
+  | `d` | Cycle density (compact → comfortable → spacious) |
+  | `Alt+1..9` | Switch to tab N on multi-tab dashboards |
+
+  **Command palette modes:**
+  | Prefix | Mode |
+  |--------|------|
+  | (none) | Search dashboards, starred, recent |
+  | `>` | Commands only (refresh, theme, density, devtools) |
+  | `#` | Search within current dashboard (tabs, sections, widgets) |
+
+  **Table shortcuts** (when a rich_table widget has focus):
+  | Key | Action |
+  |-----|--------|
+  | `↑` / `↓` | Navigate rows |
+  | `Enter` | Select row |
+  | `Space` | Toggle checkbox (when selectable) |
+  | `Home` / `End` | First / last row |
+  | `Page Up/Down` | Jump by viewport height |
+  | `s` | Focus SmartSearch (when `global_search` enabled) |
+</keyboard_shortcuts>
+
 <see_also>
   - `dashboard-yaml-structure` — hierarchy, directory mode, grid system
   - `dashboard-datasources` — SQL, projections, views, filter macros
