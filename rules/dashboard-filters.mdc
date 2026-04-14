@@ -280,6 +280,34 @@ alwaysApply: false
     User customization persists in localStorage.
   </filter_pools>
 
+  <filter_groups>
+    Optional field in `+layout.yaml` (folder layout) that groups tabs and binds each group to specific filters.
+    Controls UI visibility and navigation only — does NOT affect SQL rendering or URL serialization.
+
+    Two modes:
+    - **Classic** (no `filter_groups`): all tabs shown inline, all filters visible.
+    - **Grouped**: tabs split by group; only the active group's filters are shown in the filter panel.
+
+    ```yaml
+    filter_groups:
+      - id: content              # Required. Unique group identifier
+        tabs: [overview, detail] # Required. Tab IDs belonging to this group
+        filters: [date_range, platform]  # Required. Filter IDs visible when group is active
+        label: Content           # Optional. Display label for collapsed group dropdown
+        color: blue              # Optional. Accent color (blue|violet|amber|emerald|rose|cyan|teal|indigo)
+        collapse: false          # Optional. true (default) | false | { threshold: N }
+    ```
+
+    Collapse behavior:
+    - `true` (default) — group tabs render as a single dropdown selector.
+    - `false` — group tabs render inline in the tab bar.
+    - `{ threshold: N }` — inline when tab count ≤ N, otherwise collapse to dropdown.
+
+    Interaction with filter pools:
+    - Pool visibility is scoped within the group-filtered set. When a group is active, the "+ Add filter" menu shows only pool filters whose IDs appear in that group's `filters` list.
+    - Filters not listed in any group are hidden while any group is active.
+  </filter_groups>
+
   <shared_filters>
     Root-level `_shared/_filters.yaml` inherited by all dashboards:
     ```yaml

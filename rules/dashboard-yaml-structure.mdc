@@ -197,6 +197,7 @@ alwaysApply: false
     order: 1                                # Optional. Sort order in sidebar
     settings:
       default_dashboard: 01-marketing       # Optional. Default dashboard to open
+    filter_groups: []                       # Optional. Group tabs with bound filters (→ dashboard-filters rule)
     links:                                  # Optional. External links in sidebar
       - title: Tableau
         url: https://example.com
@@ -245,6 +246,7 @@ alwaysApply: false
 
     - **Datasources and mappings**: extend — root is base, dashboard/tab wins on key conflict
     - **Filters**: override — if dashboard defines ANY filters, root filters are completely replaced
+    - **Filter groups**: defined in `+layout.yaml` — not inherited from `_shared/` or root
   </merge_hierarchy>
 
   <shared_definitions>
