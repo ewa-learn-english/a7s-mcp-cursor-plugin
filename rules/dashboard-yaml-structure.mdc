@@ -100,6 +100,15 @@ alwaysApply: false
     | `python-remote` | server | **validation error** | server |
 
     `python` and `python-remote` + `client` are rejected by schema validation — only `pyodide` supports client-side execution.
+
+    **Server execution flow:** When `location` resolves to `server`, cells execute via `POST /api/notebook/execute` SSE stream:
+    1. Client sends `{ cellName, code, runtime, dashboardPath }` to the API
+    2. Server resolves kernel (`duckdb-server` for SQL, `python-local` for Python)
+    3. Server materializes `{{source:*}}` dependencies, executes cell, persists Parquet to blob storage
+    4. SSE events stream back: `status`, `stdout`, `stderr`, `progress`, `result` (with `blobUri`), `error`
+    5. Client loads the persisted Parquet into browser DuckDB-WASM for widget rendering
+
+    **Server kernels registered:** `duckdb-server` (DuckDB-node), `python-local` (CPython subprocess via `A7S_PYTHON_BIN`)
   </tab>
     When `tabs` is present, top-level `sections` render above all tabs.
   </tab>
