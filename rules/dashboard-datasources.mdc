@@ -302,6 +302,12 @@ alwaysApply: false
     ```yaml
     datasource: _platform.v1.activity_log.7d
     ```
+
+    Platform sources are auto-discovered by the descriptor resolver from:
+    - `{{source:_...}}` references in datasource/projection/view SQL
+    - Widget `datasource:` fields with `_`-prefixed keys
+
+    They receive full descriptors (tableName, storeKey) just like explicit datasources.
   </platform_datasources>
 
   <view_rules>
