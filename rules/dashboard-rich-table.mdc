@@ -307,6 +307,51 @@ alwaysApply: false
     `selectable` and `highlight` are mutually exclusive on the same widget.
   </selectable_and_highlight>
 
+  <selection_as_global_filter>
+    Use `selectable.emit_filters` when a row selection must reach the BASE datasource
+    SQL (not just a projection). Each entry (`{ filter_id, column }`) auto-injects a
+    hidden, serializable global filter into the dashboard's `FilterProvider`, so the
+    usual `${filters.<id>(...)}` macros resolve everywhere — in base datasources, in
+    projections, and in other widgets.
+
+    ```yaml
+    # Base datasource references the (not-yet-declared) filter directly:
+    datasources:
+      ads:
+        sql: |
+          SELECT * FROM marts.spend
+          WHERE ${filters.date_range('toDate(day)')}
+            AND ${filters.selected_channel('channel').or_true}
+
+    # Emitter table — selection drives the hidden filter:
+    - id: channel-table
+      type: rich_table
+      datasource: by_channel
+      filters:
+        exclude: [selected_channel]   # self-scope: keep THIS table full
+      selectable:
+        multi: true
+        emit_filters:
+          - { filter_id: selected_channel, column: channel }
+    ```
+
+    Properties:
+    - No manual `filters:` entry needed — the definition is synthesized.
+    - Hidden from the chip bar, but still serializable → selection persists in URL
+      and the matching rows are rehydrated on reload.
+    - URL writes use `history.replaceState` so rapid row clicks do NOT pollute
+      browser history (visible filters still use `pushState`).
+    - `selectable.multi` controls single vs multi-valued filter.
+    - Self-scoping: if the emitter table also consumes its own filter, set
+      widget-level `filters.exclude: [<filter_id>]` — otherwise the driver view
+      collapses to the selected row(s).
+
+    When to use which:
+    - `emit_filters` → cross-dashboard scope, affects base datasources.
+    - `${selection.widget('col')}` → local master-detail inside a projection chain.
+    - Both can coexist on the same selectable table.
+  </selection_as_global_filter>
+
   <actions>
     ```yaml
     actions:

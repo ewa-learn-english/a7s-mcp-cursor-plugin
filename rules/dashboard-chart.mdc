@@ -51,7 +51,7 @@ alwaysApply: false
         type: line                          # Optional. line | bar | scatter
         label: "Costs"                      # Optional. Legend label
         color: warning                      # Optional. Named or hex
-        format: currency                    # Optional. currency | percent | number
+        format: currency                    # Optional. String alias OR object (see <format> below)
         y_axis: left                        # Optional. left | right (dual axis)
         line_width: 3                       # Optional. Line thickness px
         color_by_value:                     # Optional. Color by sign
@@ -69,6 +69,37 @@ alwaysApply: false
           max: 20
     ```
   </series_config>
+
+  <format>
+    Chart `format` accepts either a string alias (`currency`, `percent`, `number`, `compact`, `bytes`, `duration`, `percent_value`, `timestamp`) or a rich object:
+
+    ```yaml
+    series:
+      - metric: revenue
+        format:
+          type: currency                    # Required. One of the types above
+          decimals: 2                       # Optional. 0..6. If omitted, auto from DuckDB profile
+          prefix: "~"                       # Optional. Prepended to body
+          suffix: " USD"                    # Optional. Appended to body
+          locale: en-US                     # Optional. Intl.NumberFormat locale
+          currency: USD                     # Optional. ISO-4217 code for currency type
+          abbreviate_above: 10000           # Optional. Compact threshold (overrides defaults)
+          compact: true                     # Optional. Force compact notation (1.2K, 3.4M)
+          pattern: "yyyy-MM"                # Optional. timestamp only. date-fns format
+    ```
+
+    Types:
+    - `currency` — currency symbol + locale-aware decimals
+    - `percent` — ratio 0..1 rendered as `XX.X%`
+    - `percent_value` — already in percent units (value displayed as-is with `%`)
+    - `number` — plain locale-aware number
+    - `compact` — always compact notation (1.2K, 3.4M)
+    - `bytes` — SI bytes (KB/MB/GB/TB)
+    - `duration` — human duration (`1h 23m`) from seconds
+    - `timestamp` — format epoch ms / ISO / Date via `pattern` (default `yyyy-MM-dd`)
+
+    Applies consistently to tooltip, Y-axis labels, and bar labels, including YoY / drill-down charts.
+  </format>
 </schema>
 
 <options>
@@ -125,6 +156,17 @@ alwaysApply: false
 
     **Metrics whose names lack these keywords** (e.g. `cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`) **MUST set `format: currency` explicitly on the series** — otherwise currency/percent symbols will be missing in tooltips, axis labels, and bar labels. Do not rely on `tooltip.value_format` alone; set it at series level for consistency across tooltip, y-axis, and labels.
   </format_priority>
+
+  <adaptive_decimals>
+    `decimals` is optional on `format` objects. When omitted, the adapter queries a lightweight DuckDB numeric profile (`MAX(CASE WHEN x = ROUND(x, N) THEN N END)`) alongside the main chart query, and fills `decimals` with the minimum precision needed to represent all values without loss (clamped to 0..6).
+
+    - Explicit `format.decimals: N` always wins over the profile.
+    - Applies to `currency`, `percent`, `percent_value`, `number`.
+    - Other types (`compact`, `bytes`, `duration`, `timestamp`) have domain-specific rules that are not overridden.
+    - The profile query runs on a separate DuckDB connection and is cached per `(source, metrics, drill-projection)`, so it is effectively free after the first render.
+
+    Practical effect: a CPA series with values `5.25, 7.10` renders `$5.25` / `$7.10` without the author specifying `decimals`. A series with integer values renders `$5` / `$7`.
+  </adaptive_decimals>
 
   <data_interpolation>
     Markers in `echarts_options`, `reference_lines`, `chart_title`, `series[].label`, `tracks[].title`:
@@ -285,6 +327,28 @@ alwaysApply: false
         style: dashed
     ```
   </reference_lines>
+
+  <rich_format_object>
+    ```yaml
+    series:
+      - metric: cpa
+        label: "CPA"
+        format:
+          type: currency
+          currency: USD
+          decimals: 2                       # Explicit — overrides adaptive precision
+      - metric: cvr
+        label: "Conversion rate"
+        format:
+          type: percent_value
+          suffix: ""                        # Disable default trailing %
+      - metric: last_activity_at
+        label: "Last activity"
+        format:
+          type: timestamp
+          pattern: "yyyy-MM-dd HH:mm"
+    ```
+  </rich_format_object>
 
   <tooltip_simple>
     ```yaml
