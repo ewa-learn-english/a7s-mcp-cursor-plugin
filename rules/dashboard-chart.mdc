@@ -110,7 +110,20 @@ alwaysApply: false
   </named_colors>
 
   <format_priority>
-    `series[].format` > `tooltip.format_overrides` > `tooltip.value_format` > auto-detection from column name
+    Resolution order — applies to tooltip, y-axis, and bar labels, including YoY / drill-down charts:
+
+    1. `series[].format` (explicit, per-metric — highest priority)
+    2. `tooltip.format_overrides[metric]`
+    3. `tooltip.value_format` (tooltip-wide default)
+    4. Auto-detection from column name + value range
+
+    Auto-detection heuristic (`detectFormat`):
+    - Name contains one of: `revenue`, `cost`, `price`, `amount`, `value`, `profit`, `income`, `loss` → `currency`
+    - Name contains one of: `rate`, `percent`, `pct`, `ratio`, `roi` → `percent`
+    - All values in `[-1, 1]` → `percent`
+    - Otherwise → `number`
+
+    **Metrics whose names lack these keywords** (e.g. `cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`) **MUST set `format: currency` explicitly on the series** — otherwise currency/percent symbols will be missing in tooltips, axis labels, and bar labels. Do not rely on `tooltip.value_format` alone; set it at series level for consistency across tooltip, y-axis, and labels.
   </format_priority>
 
   <data_interpolation>
@@ -438,6 +451,7 @@ alwaysApply: false
     - `title` = widget header; `chart_title` = inside ECharts canvas
     - `band` columns and `symbol_size.column` are excluded from auto-detected metrics
     - Raw echarts mode bypasses all adapter logic; override mode deep-merges (objects merged, arrays replaced)
+    - For metrics whose names don't match currency/percent keywords (`cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`, ...) you MUST set `format: currency` (or the appropriate type) on the series explicitly — auto-detection will fall back to `number` and strip the `$` / `%` symbol
   </hard_constraints>
 </rules>
 
