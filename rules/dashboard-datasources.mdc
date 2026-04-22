@@ -122,6 +122,8 @@ alwaysApply: false
     | `${filters.id('col')}` | `col IN ('v')` | `1=1` |
     | `${filters.id('col').if_set}` | `AND col IN ('v')` | `` (empty string) |
     | `${filters.id('col').or_true}` | `col IN ('v')` | `1=1` |
+    | `${filters.id('col').required}` | `AND col IN ('v')` | `AND 1=0` |
+    | `${filters.id('col').or_false}` | `col IN ('v')` | `1=0` |
     | `${filters.id.value}` | `'v'` (SQL-quoted) | `'NULL'` |
     | `${filters.id.values}` | `['a', 'b']` | `[]` |
     | `${filters.id.sql}` | `col IN ('v')` (bare) | `1=1` |
@@ -131,7 +133,28 @@ alwaysApply: false
 
     **Default** (`${filters.id}`): write `AND` manually. Use with `WHERE 1=1 AND ${filters.id}`.
     **`.if_set`**: includes `AND` automatically — use WITHOUT manual `AND`. Best for optional/cascading filters.
+    **`.required` / `.or_false`**: inverse of `.if_set` / `.or_true` — when the filter is empty, render `AND 1=0` / `1=0` to force zero rows. Use to gate heavy queries until the user picks a value instead of the `clearable: false + default` workaround.
   </filter_macros>
+
+  <required_filters title="Gating heavy queries on filter selection">
+    Use `.required` to avoid scanning a whole table before the user picks a filter value:
+
+    ```sql
+    SELECT *
+    FROM marts.events
+    WHERE 1=1
+      ${filters.date_range('toDate(ts)').if_set}
+      ${filters.account_id('account_id').required}
+    ```
+
+    - Empty `account_id` → `AND 1=0` → query returns zero rows instantly (nothing fetched from ClickHouse).
+    - As soon as a value is selected → `AND account_id IN (...)` kicks in.
+
+    Use `.or_false` (no `AND` prefix) when the condition is the only thing in `WHERE`:
+    `WHERE ${filters.account_id('account_id').or_false}`.
+
+    Preferred over `clearable: false + default` because it does not silently ship a pre-selected value to every viewer.
+  </required_filters>
 
   <auto_filters>
     | Syntax | Description |
