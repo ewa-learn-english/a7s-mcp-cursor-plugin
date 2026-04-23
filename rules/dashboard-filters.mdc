@@ -374,11 +374,12 @@ alwaysApply: false
     - Segmented no selection → `1=1`
     - Slider range → `column >= min AND column <= max`
     - Slider single → `column >= value`
+    - `.required` / `.or_false` — when filter is empty, render `1=0` (zero rows) to gate heavy queries until the user picks a value.
   </sql_rendering>
 </rules>
 
 <see_also>
-  - `dashboard-datasources` — filter macros in SQL, `.if_set`, `.or_true`, auto filters
+  - `dashboard-datasources` — filter macros in SQL, `.if_set`, `.or_true`, `.required`, `.or_false`, auto filters
   - `dashboard-rich-table` — inline column filtering, smart search
   - `dashboard-yaml-structure` — filter hierarchy, shared filters, directory mode
 </see_also>
