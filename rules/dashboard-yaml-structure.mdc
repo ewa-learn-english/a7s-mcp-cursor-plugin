@@ -14,6 +14,7 @@ alwaysApply: false
   <hierarchy>root → dashboard → tab → section → widget</hierarchy>
   <grid>12-column CSS grid (`grid grid-cols-12 gap-4`). Always 12 columns, always 16px gap.</grid>
   <widget_types>rich_table | markdown | chart — three types only, no others exist</widget_types>
+    <notebook_mode>Tabs may use `mode: notebook` to render markdown narrative cells, executable SQL/Python datasource projections, and dependent widgets as an ordered notebook.</notebook_mode>
   <authoring_modes>
     - **Flat mode**: single YAML file per dashboard
     - **Directory mode**: strict separation — `_tab.yaml` = meta, `_shared/` = data definitions, `NN-*.yaml` = tab content
@@ -78,10 +79,14 @@ alwaysApply: false
       - id: overview           # Required. URL-safe slug
         title: Overview        # Required
         icon: BarChart3        # Optional. Lucide icon
+        mode: notebook         # Optional. Enables notebook UI for this tab
+        runtime:               # Optional. Notebook runtime selection
+          code: pyodide        #   pyodide/browser by default; server runtimes may be configured
         filters: []            # Optional. Tab-level filters
         sections: []           # Optional. Sections within this tab
     ```
     When `tabs` is present, top-level `sections` render above all tabs.
+    In notebook mode, cells are ordered from markdown widgets and datasource projections with `code:`. Markdown cells open in edit mode by default; `Shift+Enter` is the primary run-and-advance shortcut for code cells.
   </tab>
 
   <ai_config>

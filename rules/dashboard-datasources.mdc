@@ -15,6 +15,7 @@ alwaysApply: false
   <sql_dialects>
     - **Base datasource SQL** → ClickHouse syntax
     - **Projection, view, inline widget SQL** → DuckDB syntax
+    - **Notebook code projections** → SQL runs in DuckDB; `runtime: python` cells run Python and return tabular output.
     - Never mix dialects. Base sources talk to ClickHouse; everything else is local DuckDB.
   </sql_dialects>
   <datasource_types>
@@ -68,6 +69,30 @@ alwaysApply: false
           costs: { type: decimal, description: Total spend, unit: USD }
     ```
   </projection>
+
+  <notebook_code_projection>
+    Code projections are notebook cells when the tab uses `mode: notebook`. Name them uniquely within the notebook root to avoid persisted parquet collisions.
+
+    ```yaml
+    projections:
+      nb_top_campaigns:
+        code: |
+          SELECT campaign, SUM(costs) AS costs, SUM(revenue) AS revenue
+          FROM {{source:marketing}}
+          GROUP BY campaign
+          ORDER BY revenue DESC
+          LIMIT 25
+
+      nb_stats_summary:
+        runtime: python
+        code: |
+          import pandas as pd
+          df = input_table
+          result = pd.DataFrame([{"rows": len(df)}])
+    ```
+
+    Successful runs materialize DuckDB tables and persist parquet outputs via `/api/notebook/cell`. Widgets should point at the projection key (`datasource: nb_top_campaigns`) after the cell has run.
+  </notebook_code_projection>
 
   <projection_column_types>
     `type: string | decimal | integer | timestamp | boolean | date`

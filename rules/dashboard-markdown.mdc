@@ -13,6 +13,7 @@ alwaysApply: false
 <concepts>
   <engine>Eval-free template engine (no `new Function`, CSP-safe). Renders Markdown → HTML via `marked` + `DOMPurify`.</engine>
   <data_model>Inline SQL returns a single row. Each column becomes a template variable.</data_model>
+    <notebook_markdown>In notebook mode, markdown widgets without datasource/template act as narrative cells and open in edit mode by default.</notebook_markdown>
 </concepts>
 
 <schema>
@@ -42,6 +43,20 @@ alwaysApply: false
         base_url: /dashboards/product/samples
     ```
   </markdown_widget>
+
+  <notebook_markdown_cell>
+    Static markdown cells can be used as narrative blocks in `mode: notebook` tabs:
+
+    ```yaml
+    - id: methodology
+      type: markdown
+      content: |
+        ## Methodology
+        Explain assumptions, formulas, and next steps here.
+    ```
+
+    Use `content:` for notebook narrative cells. Use `template:` + inline `datasource:` when the markdown should render data-driven values.
+  </notebook_markdown_cell>
 </schema>
 
 <options>
