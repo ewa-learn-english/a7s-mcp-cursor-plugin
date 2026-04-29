@@ -15,7 +15,7 @@ alwaysApply: false
   <sql_dialects>
     - **Base datasource SQL** → ClickHouse syntax
     - **Projection, view, inline widget SQL** → DuckDB syntax
-    - **Notebook code projections** → SQL runs in DuckDB; `runtime: python` cells run Python and return tabular output.
+    - **Notebook projections** → `sql:` cells run in DuckDB; `code:` cells run Python and return tabular output. Tab `runtime: client | server | remote` decides execution target.
     - Never mix dialects. Base sources talk to ClickHouse; everything else is local DuckDB.
   </sql_dialects>
   <datasource_types>
@@ -71,12 +71,12 @@ alwaysApply: false
   </projection>
 
   <notebook_code_projection>
-    Code projections are notebook cells when the tab uses `mode: notebook`. Name them uniquely within the notebook root to avoid persisted parquet collisions.
+    Projections are notebook cells when the tab uses `mode: notebook`. Name them uniquely within the notebook root to avoid persisted parquet collisions.
 
     ```yaml
     projections:
       nb_top_campaigns:
-        code: |
+        sql: |
           SELECT campaign, SUM(costs) AS costs, SUM(revenue) AS revenue
           FROM {{source:marketing}}
           GROUP BY campaign
@@ -84,7 +84,6 @@ alwaysApply: false
           LIMIT 25
 
       nb_stats_summary:
-        runtime: python
         code: |
           import pandas as pd
           df = input_table
