@@ -68,6 +68,7 @@ Available tools and their purpose:
 - Use filter macros (`${filters.date_range('toDate(col)')}`) — never hardcode date ranges
 - Base source SQL uses **ClickHouse** syntax; projection/view SQL uses **DuckDB** syntax
 - **LAYOUT**: Prefer section-level `layout: horizontal` + `columns: N` for multi-column layouts. Reserve `col_span` only for unequal widths or wide tables (`col_span: 15`)
+- **CATALOG LAYOUT**: Use folder-level `layout: catalog` in `+layout.yaml` for hub/reading-list dashboards with many tabs. Catalog sections reference existing tab file/directory names, `items: "*"` is allowed once for the remainder, and card clicks keep direct tab URLs. Reader mode is separate follow-up work.
 
 ### Phase 4: VALIDATE
 
@@ -120,6 +121,30 @@ Structure tabs from high-level to granular:
 2. **By dimension** — grouped by one dimension (media source, language)
 3. **By multiple** — grouped by 2-3 dimensions
 4. **Charts** — loss analysis, cohort, YoY comparison
+
+### Catalog landing hierarchy
+
+For dashboards with roughly 10+ tabs or editorial navigation needs, prefer a catalog landing instead of a crowded tab rail:
+
+```yaml
+name: Marketing Hub
+layout: catalog
+catalog:
+  default_sort: order
+  show_activity: true
+  show_updates: true
+  sections:
+    - id: featured
+      title: Featured
+      style: editorial
+      items: [01-overview, 02-deep-dive]
+    - id: archive
+      title: Archive
+      style: grid
+      items: "*"
+```
+
+Add card metadata to each tab file or `_tab.yaml`: `description`, `icon`, `tags`, and `owner`.
 
 ### Widget types
 

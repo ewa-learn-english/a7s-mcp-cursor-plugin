@@ -200,6 +200,19 @@ alwaysApply: false
     icon: TrendingUp                        # Optional. Lucide icon
     description: Product dashboards         # Optional
     order: 1                                # Optional. Sort order in sidebar
+    layout: tabs                            # Optional. tabs (default) | catalog
+    catalog:                                # Optional. Only when layout: catalog
+      default_sort: order                   # order | name
+      show_activity: true                   # Best-effort user/org signal badges
+      show_updates: true                    # Repository change badges when available
+      sections:
+        - id: featured
+          title: Featured
+          style: editorial                  # editorial | grid
+          items: [01-overview, 02-deep-dive]
+        - id: archive
+          title: Archive
+          items: "*"                        # One wildcard section gets remaining tabs
     settings:
       default_dashboard: 01-marketing       # Optional. Default dashboard to open
     filter_groups: []                       # Optional. Group tabs with bound filters (→ dashboard-filters rule)
@@ -210,6 +223,22 @@ alwaysApply: false
         external: true
     ```
   </root_layout>
+
+  <catalog_layout>
+    `layout: catalog` is a folder-level landing mode for dashboards with many tabs.
+    It renders existing tab files/directories as cards at `/dashboards/<root>/<dashboard>`.
+    Card clicks keep direct tab URLs: `/dashboards/<root>/<dashboard>/<tab>`.
+
+    Authoring rules:
+    - Use catalog for hubs, reading lists, onboarding sets, and 10+ tab dashboards.
+    - Keep `tabs` as default for small operational dashboards with predictable daily navigation.
+    - `catalog.sections[].items` references direct tab file/directory names, including numeric prefixes.
+    - Use `items: "*"` at most once to place all unlisted tabs.
+    - Add card metadata in the tab file or `_tab.yaml`: `description`, `icon`, `tags`, `owner`.
+    - Automatic asymmetric layout is deterministic. Do not hand-code card sizes.
+    - Reader mode is not part of catalog MVP; it is tracked separately in spec 108.
+    - Do not confuse folder-level `layout: catalog` with section-level `layout: horizontal`.
+  </catalog_layout>
 
   <directory_mode>
     ```text

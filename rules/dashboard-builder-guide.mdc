@@ -73,6 +73,37 @@
     4. **Charts** — loss analysis, cohort, YoY comparison
   </tab_hierarchy>
 
+  <catalog_layout>
+    Use `layout: catalog` in `+layout.yaml` when a dashboard folder is a hub, reading list, onboarding set, or has roughly 10+ tabs.
+    The folder route becomes an editorial card landing; direct tab URLs remain unchanged.
+
+    ```yaml
+    name: Marketing Hub
+    layout: catalog
+    catalog:
+      default_sort: order
+      show_activity: true
+      show_updates: true
+      sections:
+        - id: featured
+          title: Featured
+          style: editorial
+          items: [01-overview, 02-deep-dive]
+        - id: archive
+          title: Archive
+          style: grid
+          items: "*"
+    ```
+
+    Catalog best practices:
+    - Keep card metadata short: `description`, `icon`, `tags`, `owner`.
+    - Reference direct tab file/directory names in `items`, including numeric prefixes.
+    - Use `items: "*"` once for the remainder.
+    - Let automatic asymmetric layout choose hero/feature/wide/standard cards.
+    - Use normal `tabs` layout for 3-7 frequently used operational tabs.
+    - Reader mode is separate follow-up work, not current catalog behavior.
+  </catalog_layout>
+
   <naming_conventions>
     | Element | Convention | Example |
     |---|---|---|
