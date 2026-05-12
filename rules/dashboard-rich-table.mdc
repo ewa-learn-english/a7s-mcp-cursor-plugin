@@ -353,8 +353,26 @@ alwaysApply: false
   </selection_as_global_filter>
 
   <actions>
+    Row actions have two distinct modes:
+    - `href` opens a read-only navigation link and is available to dashboard readers.
+    - `skill` runs a write skill and requires mutation access (`EXECUTE | WRITE`).
+
+    Do not combine `href` and `skill` in the same action. Use `href` for external tools,
+    admin pages, and drill-outs; use `skill` only for server-side mutations.
+
     ```yaml
     actions:
+      open_lesson:
+        label: Open Lesson
+        icon: external-link
+        quick: true
+        href: "https://admin.example.com/courses/{course_id}/lessons/{lesson_id}"
+        invalid_href: hide                   # default: hide | disabled | placeholder
+      open_from_column:
+        label: Open Resource
+        icon: external-link
+        href: "{resource_url}"               # full URL from row data
+        when: "resource_url != ''"
       pause:
         label: Pause Campaign
         icon: pause
@@ -367,6 +385,14 @@ alwaysApply: false
         destructive: true                    # Confirmation dialog first
         skill: archive_campaign
     ```
+
+    Link safety:
+    - Placeholder values in path templates are URL-encoded.
+    - Full URL placeholders like `{resource_url}` are decoded once and validated.
+    - Invalid links are hidden by default. `invalid_href: disabled` shows a disabled
+      action; `invalid_href: placeholder` shows a non-clickable invalid marker.
+    - Dangerous schemes (`javascript:`, `data:`, `vbscript:`) are rejected by
+      validation and blocked at runtime.
   </actions>
 
   <editable_columns>
