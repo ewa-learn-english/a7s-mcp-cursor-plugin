@@ -74,34 +74,43 @@
   </tab_hierarchy>
 
   <catalog_layout>
-    Use `layout: catalog` in `+layout.yaml` when a dashboard folder is a hub, reading list, onboarding set, or has roughly 10+ tabs.
-    The folder route becomes an editorial card landing; direct tab URLs remain unchanged.
+    Use `layout: catalog` in `+layout.yaml` when a dashboard folder is a hub, static archive, reading list, onboarding set, editorial overview, or has roughly 10+ tabs.
+    The folder route becomes a rich browse landing; direct tab URLs remain unchanged.
 
     ```yaml
     name: Marketing Hub
     layout: catalog
     catalog:
       default_sort: order
+      quick_search: true
+      auto_layout:
+        other_section: true
+        other_title: Static archive
+        other_style: index
       show_activity: true
       show_updates: true
       sections:
         - id: featured
           title: Featured
-          style: editorial
+          style: spotlight
+          accent: violet
           items: [01-overview, 02-deep-dive]
         - id: archive
           title: Archive
-          style: grid
+          style: index
+          accent: amber
           items: "*"
     ```
 
     Catalog best practices:
-    - Keep card metadata short: `description`, `icon`, `tags`, `owner`.
+    - Use catalog for static archives: monthly reports, launch notes, retired dashboards, old experiment reviews, and historical references.
+    - Keep card metadata short: `description`, `icon`, `tags`, `owner`, plus optional `catalog_card: { accent, badge, label, search_text }`.
     - Reference direct tab file/directory names in `items`, including numeric prefixes.
-    - Use `items: "*"` once for the remainder.
-    - Let automatic asymmetric layout choose hero/feature/wide/standard cards.
+    - Use `items: "*"` once for the remainder, or let `auto_layout` create an `Other` section for unlisted tabs.
+    - Choose section styles deliberately: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `index` for archives.
+    - Use accent colors from the design system: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
     - Use normal `tabs` layout for 3-7 frequently used operational tabs.
-    - Reader mode is separate follow-up work, not current catalog behavior.
+    - Reader mode is separate follow-up work, not current catalog behavior. Data-backed KPI/chart previews belong to spec 109, not Phase 1.
   </catalog_layout>
 
   <naming_conventions>

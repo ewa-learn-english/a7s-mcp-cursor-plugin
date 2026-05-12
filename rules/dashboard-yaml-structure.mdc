@@ -203,15 +203,23 @@ alwaysApply: false
     layout: tabs                            # Optional. tabs (default) | catalog
     catalog:                                # Optional. Only when layout: catalog
       default_sort: order                   # order | name
+      quick_search: true                    # Search card metadata in the catalog landing
+      auto_layout:
+        other_section: true                 # Unlisted tabs become automatic Other when no wildcard exists
+        other_title: Static archive
+        other_style: index                  # editorial | grid | dense | spotlight | index
       show_activity: true                   # Best-effort user/org signal badges
       show_updates: true                    # Repository change badges when available
       sections:
         - id: featured
           title: Featured
-          style: editorial                  # editorial | grid
+          style: spotlight                  # editorial | grid | dense | spotlight | index
+          accent: violet                    # blue | violet | amber | emerald | rose | cyan | teal | indigo
           items: [01-overview, 02-deep-dive]
         - id: archive
-          title: Archive
+          title: Static archive
+          style: index
+          accent: amber
           items: "*"                        # One wildcard section gets remaining tabs
     settings:
       default_dashboard: 01-marketing       # Optional. Default dashboard to open
@@ -225,18 +233,20 @@ alwaysApply: false
   </root_layout>
 
   <catalog_layout>
-    `layout: catalog` is a folder-level landing mode for dashboards with many tabs.
+    `layout: catalog` is a folder-level browse mode for dashboards with many tabs.
     It renders existing tab files/directories as cards at `/dashboards/<root>/<dashboard>`.
     Card clicks keep direct tab URLs: `/dashboards/<root>/<dashboard>/<tab>`.
 
     Authoring rules:
-    - Use catalog for hubs, reading lists, onboarding sets, and 10+ tab dashboards.
+    - Use catalog for hubs, static archives, reading lists, onboarding sets, editorial overviews, and 10+ tab dashboards.
+    - Static archives include monthly reports, launch notes, retired dashboards, old experiment reviews, and historical references.
     - Keep `tabs` as default for small operational dashboards with predictable daily navigation.
     - `catalog.sections[].items` references direct tab file/directory names, including numeric prefixes.
-    - Use `items: "*"` at most once to place all unlisted tabs.
-    - Add card metadata in the tab file or `_tab.yaml`: `description`, `icon`, `tags`, `owner`.
-    - Automatic asymmetric layout is deterministic. Do not hand-code card sizes.
-    - Reader mode is not part of catalog MVP; it is tracked separately in spec 108.
+    - Use `items: "*"` at most once to place all unlisted tabs, or let `auto_layout` create an automatic `Other` section.
+    - Section styles: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `index` for static archives.
+    - Add card metadata in the tab file or `_tab.yaml`: `description`, `icon`, `tags`, `owner`, and optional `catalog_card: { accent, badge, label, search_text }`.
+    - Use design-system accents only: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
+    - Reader mode is not part of catalog MVP; it is tracked separately in spec 108. Data-backed KPI/chart previews are tracked in spec 109.
     - Do not confuse folder-level `layout: catalog` with section-level `layout: horizontal`.
   </catalog_layout>
 
