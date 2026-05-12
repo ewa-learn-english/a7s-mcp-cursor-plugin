@@ -86,7 +86,7 @@
       auto_layout:
         other_section: true
         other_title: Static archive
-        other_style: index
+        other_style: archive_grid
       show_activity: true
       show_updates: true
       sections:
@@ -97,9 +97,14 @@
           items: [01-overview, 02-deep-dive]
         - id: archive
           title: Archive
-          style: index
+          style: archive_grid
           accent: amber
           items: "*"
+        - id: launch-shelf
+          title: Recent launches
+          style: carousel
+          accent: cyan
+          items: [10-launch-checklist, 11-field-notes]
     ```
 
     Catalog best practices:
@@ -107,7 +112,7 @@
     - Keep card metadata short: `description`, `icon`, `tags`, `owner`, plus optional `catalog_card: { accent, badge, label, search_text }`.
     - Reference direct tab file/directory names in `items`, including numeric prefixes.
     - Use `items: "*"` once for the remainder, or let `auto_layout` create an `Other` section for unlisted tabs.
-    - Choose section styles deliberately: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `index` for archives.
+    - Choose section styles deliberately: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `archive_grid` for static archives, `carousel` for curated shelves. `index` is legacy; prefer `archive_grid`.
     - Use accent colors from the design system: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
     - Use normal `tabs` layout for 3-7 frequently used operational tabs.
     - Reader mode is separate follow-up work, not current catalog behavior. Data-backed KPI/chart previews belong to spec 109, not Phase 1.

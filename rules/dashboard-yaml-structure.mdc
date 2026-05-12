@@ -207,20 +207,25 @@ alwaysApply: false
       auto_layout:
         other_section: true                 # Unlisted tabs become automatic Other when no wildcard exists
         other_title: Static archive
-        other_style: index                  # editorial | grid | dense | spotlight | index
+        other_style: archive_grid          # editorial | grid | dense | spotlight | archive_grid | carousel | index
       show_activity: true                   # Best-effort user/org signal badges
       show_updates: true                    # Repository change badges when available
       sections:
         - id: featured
           title: Featured
-          style: spotlight                  # editorial | grid | dense | spotlight | index
+          style: spotlight                  # editorial | grid | dense | spotlight | archive_grid | carousel | index
           accent: violet                    # blue | violet | amber | emerald | rose | cyan | teal | indigo
           items: [01-overview, 02-deep-dive]
         - id: archive
           title: Static archive
-          style: index
+          style: archive_grid
           accent: amber
           items: "*"                        # One wildcard section gets remaining tabs
+        - id: launch-shelf
+          title: Recent launches
+          style: carousel
+          accent: cyan
+          items: [10-launch-checklist, 11-field-notes]
     settings:
       default_dashboard: 01-marketing       # Optional. Default dashboard to open
     filter_groups: []                       # Optional. Group tabs with bound filters (→ dashboard-filters rule)
@@ -243,7 +248,7 @@ alwaysApply: false
     - Keep `tabs` as default for small operational dashboards with predictable daily navigation.
     - `catalog.sections[].items` references direct tab file/directory names, including numeric prefixes.
     - Use `items: "*"` at most once to place all unlisted tabs, or let `auto_layout` create an automatic `Other` section.
-    - Section styles: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `index` for static archives.
+    - Section styles: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `archive_grid` for static archives, `carousel` for curated shelves. `index` is legacy; prefer `archive_grid`.
     - Add card metadata in the tab file or `_tab.yaml`: `description`, `icon`, `tags`, `owner`, and optional `catalog_card: { accent, badge, label, search_text }`.
     - Use design-system accents only: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
     - Reader mode is not part of catalog MVP; it is tracked separately in spec 108. Data-backed KPI/chart previews are tracked in spec 109.
