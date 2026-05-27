@@ -34,6 +34,11 @@ alwaysApply: false
       sort: value_desc                      # Optional. X-axis sort
       drill_down: true                      # Optional. Boolean or object
       y_inverse: false                      # Optional. Flip Y-axis
+      x_axis:                               # Optional. Explicit X-axis field/format
+        field: month_period                 # Optional. Column name; shorthand: x_axis: month_period
+        type: time                          # Optional. time | category
+        label: Month                        # Optional. Axis label
+        format: "yyyy-MM"                   # Optional. date-fns pattern for time axis ticks/tooltips
       legend_position: bottom               # Optional. bottom | left | right
       reference_lines: []                   # Optional. Marker lines
       series: []                            # Optional. Series config
@@ -100,6 +105,36 @@ alwaysApply: false
 
     Applies consistently to tooltip, Y-axis labels, and bar labels, including YoY / drill-down charts.
   </format>
+
+  <x_axis>
+    Use `x_axis` when the time/category column or date display must be explicit:
+
+    ```yaml
+    x_axis:
+      field: month_period
+      type: time
+      label: Month
+      format: "yyyy-MM"
+    ```
+
+    Shorthand:
+
+    ```yaml
+    x_axis: month_period
+    ```
+
+    `format` accepts either a date-fns pattern string (recommended) or a timestamp object:
+
+    ```yaml
+    x_axis:
+      field: month_period
+      type: time
+      format: { type: timestamp, pattern: "yyyy-MM" }
+    ```
+
+    Applies to visible X-axis ticks and tooltip `{x}` / tooltip headers for standard, grouped, multi-track, comparison, and drill-down charts.
+    Raw-only `echarts_options` bypasses this adapter behavior; set ECharts `xAxis.axisLabel.formatter` manually there.
+  </x_axis>
 </schema>
 
 <options>
@@ -395,6 +430,10 @@ alwaysApply: false
       datasource: daily_revenue
       preset: trend
       chart_title: "Revenue — total $value:revenue:sum|round:0|currency"
+      x_axis:
+        field: date
+        type: time
+        format: "yyyy-MM"
       series:
         - metric: revenue
           label: "Revenue ($value:revenue:last|round:0|currency)"
@@ -513,6 +552,7 @@ alwaysApply: false
     - `tracks` takes priority over `series` if both specified
     - `tracks` incompatible with `drill_down`
     - `title` = widget header; `chart_title` = inside ECharts canvas
+    - Use `x_axis.format: "yyyy-MM"` (or another date-fns pattern) when a time axis must show month/year instead of the default short day/month label
     - `band` columns and `symbol_size.column` are excluded from auto-detected metrics
     - Raw echarts mode bypasses all adapter logic; override mode deep-merges (objects merged, arrays replaced)
     - For metrics whose names don't match currency/percent keywords (`cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`, ...) you MUST set `format: currency` (or the appropriate type) on the series explicitly — auto-detection will fall back to `number` and strip the `$` / `%` symbol
