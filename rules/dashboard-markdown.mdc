@@ -13,7 +13,8 @@ alwaysApply: false
 <concepts>
   <engine>Eval-free template engine (no `new Function`, CSP-safe). Renders Markdown → HTML via `marked` + `DOMPurify`.</engine>
   <data_model>Inline SQL returns a single row. Each column becomes a template variable.</data_model>
-    <notebook_markdown>In notebook mode, markdown widgets without datasource/template act as narrative cells and open in edit mode by default.</notebook_markdown>
+  <notebook_markdown>In notebook mode, markdown widgets without datasource/template act as narrative cells and open in edit mode by default.</notebook_markdown>
+  <doc_markdown>In `mode: doc` tabs, markdown widgets are the primary Knowledge Base body. Prefer static `content:` for durable prose; use `template:` + inline DuckDB `datasource:` only when the document needs calculated values. Static doc content is processed into a cached, rebuildable DocsArtifact: sanitized HTML, plain text, headings, ai_hints, wiki_links, Mermaid/future embed refs, warnings, and contentHash.</doc_markdown>
 </concepts>
 
 <schema>
@@ -45,7 +46,7 @@ alwaysApply: false
   </markdown_widget>
 
   <notebook_markdown_cell>
-    Static markdown cells can be used as narrative blocks in `mode: notebook` tabs:
+    Static markdown cells can be used as narrative blocks in `mode: notebook` tabs and as durable prose in `mode: doc` Knowledge Base tabs:
 
     ```yaml
     - id: methodology
@@ -55,9 +56,66 @@ alwaysApply: false
         Explain assumptions, formulas, and next steps here.
     ```
 
-    Use `content:` for notebook narrative cells. Use `template:` + inline `datasource:` when the markdown should render data-driven values.
+    Use `content:` for notebook narrative cells and doc pages. Use `template:` + inline `datasource:` when the markdown should render data-driven values.
   </notebook_markdown_cell>
+
+  <doc_page_body>
+    ```yaml
+    mode: doc
+    sections:
+      - id: body
+        widgets:
+          - id: article
+            type: markdown
+            content: |
+              ## Local Setup
+              Write long-form internal knowledge here.
+    ```
+
+    Doc pages are normal dashboard tabs: source of truth is root YAML, canonical route is `/dashboards/<root>/<dashboard>/<tab>`, and RBAC uses the tab path. Do not introduce a separate docs store. The DocsArtifact cache is derived from YAML content and works with filesystem, MongoDB-backed, and in-memory roots.
+  </doc_page_body>
 </schema>
+
+<doc_reader_extensions>
+  <syntax>
+    Reader extensions for static `mode: doc` content:
+
+    | Syntax | Purpose |
+    |---|---|
+    | `[[target]]`, `[[target#anchor|label]]` | Same-dashboard wiki links; short links resolve target titles automatically and validation rejects broken links |
+    | `<!--ai_hint: ...-->` | Hidden LLM/search context; stripped from reader HTML and plain text |
+    | `:::note`, `:::warning`, `:::danger`, `:::tip` | Callouts; close each block with `:::` |
+    | `:::details{title="..."}` | Collapsible explanation block |
+    | `:::steps` | Procedure block for ordered steps |
+    | `:::columns{count=2}` | Reader-only responsive columns for short parallel notes; `count=2` or `count=3` |
+    | `:::tabs` + `::tab{title="..."}` | Accessible reader tabs for alternate explanations or code paths |
+    | `:::embed{type=mermaid}` | Static client-rendered Mermaid diagram from the directive body; no data access |
+    | `:::embed{type=widget id=...}` | Safe embed placeholder; live widget/metric/dashboard embeds are a follow-up |
+    | `:kbd[Cmd+K]` | Keyboard shortcut chip |
+    | `:status[verified]{color="green"}` | Inline status chip |
+  </syntax>
+
+  <authoring_rules>
+    - Keep durable prose in static `content:` so the DocsArtifact can expose headings, plain text, links, and ai_hints to LLM/search consumers.
+    - Use meaningful h2/h3 headings; they populate the desktop TOC, mobile Contents sheet, and future retrieval anchors.
+    - Prefer `[[target]]` short links. Skipper displays the target page title automatically; use `[[target|custom label]]` only when the sentence needs different wording.
+    - Link resolution is exact doc tab path/id first, then unambiguous leaf match with numeric filename prefixes ignored. Use explicit paths when a leaf could become ambiguous.
+    - Use `[[target#heading-anchor]]` for deep links and keep anchors aligned with real headings. Validation fails unresolved links, ambiguous leaf matches, and missing anchors.
+    - Keep dynamic numbers in DuckDB SQL (`template:` + inline `datasource:`) rather than hardcoding them in prose. Recompute ratios from components with `NULLIF` guards instead of pasting stale values.
+    - Use Mermaid only for static process, dependency, or relationship diagrams. Do not encode live metrics in Mermaid; live values belong in DuckDB-backed widgets or markdown templates.
+    - Use tabs for alternate views of the same concept, not for hiding required reading. Use columns for concise side-by-side notes; keep long prose in the normal single-column reader flow.
+    - For static Knowledge Base pages, prefer markdown `content:` with no datasource-backed widgets. Static doc pages skip the browser DuckDB startup path and load faster; add inline DuckDB only when the page truly needs calculated values.
+    - Do not add MDX, JSX, raw scripts, or iframe embeds; the reader sanitizes HTML and only reserves safe placeholders.
+    - Do not introduce `kb_pages` or a separate docs route; filesystem, MongoDB-backed roots, and in-memory roots all use the same tab YAML source of truth.
+  </authoring_rules>
+
+  <reader_experience>
+    - The KB reader uses a flat, opaque content column; Liquid Glass belongs to app chrome and the mobile TOC trigger, not the prose body.
+    - The reader favors calm editorial scanning: bounded line length, generous line height, quiet metadata, strong heading rhythm, token-based callouts, accessible tabs, responsive columns, Mermaid diagrams, and copyable code blocks.
+    - The reader side rail buckets `On this page` and `Related pages`; related pages list explicit outgoing links first, then backlinks, and reader/API responses RBAC-filter each item before exposing titles, hrefs, or snippets.
+    - Unknown or malformed directives become visible author warnings; they should be fixed in YAML, not hidden with raw HTML.
+  </reader_experience>
+</doc_reader_extensions>
 
 <options>
   <template_syntax>

@@ -359,6 +359,10 @@ alwaysApply: false
 
     Do not combine `href` and `skill` in the same action. Use `href` for external tools,
     admin pages, and drill-outs; use `skill` only for server-side mutations.
+    For write-skill tables bound to projected data, prefer a named datasource projection with
+    `materialized: true`; the client infers strict optimistic UPDATEs from the skill SQL and
+    refreshes the projection locally. Do not add local SQL `post_actions` for standard table edits
+    unless you are intentionally using a legacy fallback.
 
     ```yaml
     actions:
@@ -396,6 +400,10 @@ alwaysApply: false
   </actions>
 
   <editable_columns>
+    Editable columns should use a write skill whose final statement is a simple `UPDATE ... SET ... WHERE ...`.
+    The optimistic path updates only columns explicitly present in the skill `SET` clause, then refreshes any
+    dependent materialized projection before the server response settles.
+
     ```yaml
     - id: daily_budget
       label: Daily Budget

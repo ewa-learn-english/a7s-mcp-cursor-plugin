@@ -6,12 +6,12 @@ alwaysApply: false
 
 <rule>
 <meta>
-  This rule covers datasource definitions for A7S Skipper dashboards: ClickHouse sources, views, projections, skills, filter macros, freshness, and platform datasources.
+  This rule covers datasource definitions for A7S Skipper dashboards: ClickHouse sources, views, logical/materialized projections, skills, filter macros, freshness, and platform datasources.
   Activate when writing or editing `datasources:` blocks, `_shared/_datasources.yaml`, or widget `datasource:` references.
 </meta>
 
 <concepts>
-  <data_flow>ClickHouse SQL → Parquet → DuckDB table → projections/views → widget queries DuckDB locally</data_flow>
+  <data_flow>ClickHouse/skill SQL → Parquet → DuckDB base table → projections/views → widget queries DuckDB locally</data_flow>
   <sql_dialects>
     - **Base datasource SQL** → ClickHouse syntax
     - **Projection, view, inline widget SQL** → DuckDB syntax
@@ -55,6 +55,7 @@ alwaysApply: false
       daily_costs_by_source:
         description: Daily costs by media source     # Optional
         ai_hint: "Best for trend analysis"           # Optional
+        materialized: true                          # Optional. Physical DuckDB revision table + stable logical view
         sql: |                                       # DuckDB syntax
           SELECT
             CAST(install_date AS DATE) as date,
@@ -97,6 +98,33 @@ alwaysApply: false
     `type: string | decimal | integer | timestamp | boolean | date`
     Optional fields: `unit`, `mapping` (reference to dashboard mapping), `values` (known values), `pii` (boolean), `ai_hint`
   </projection_column_types>
+
+  <materialized_projection>
+    Use `materialized: true` when a rich_table is backed by a projection over a write-skill/base source and must refresh immediately after optimistic writes, rollback, confirmation, discard, errors, or refetch.
+
+    ```yaml
+    datasources:
+      fb_campaigns:
+        type: skill
+        sql: |
+          SELECT id, name, status, daily_budget
+          FROM fb.act_123.getCampaigns
+        projections:
+          fb_campaigns_table:
+            materialized: true
+            sql: |
+              SELECT id, name, status, daily_budget
+              FROM {{source:fb_campaigns}}
+    sections:
+      - id: campaigns
+        widgets:
+          - id: campaigns-table
+            type: rich_table
+            datasource: fb_campaigns_table
+    ```
+
+    Materialized projections still use DuckDB syntax. Runtime creates immutable physical revision tables, swaps a stable logical view, and tracks the projection with its own cascade-store key. Existing rows remain visible while refresh recomputes.
+  </materialized_projection>
 
   <view_datasource>
     ```yaml
@@ -207,13 +235,13 @@ alwaysApply: false
   </selection_macros>
 
   <post_actions>
-    Declarative hooks after write skill execution:
+    Declarative hooks after write skill execution. Standard rich_table write actions do not need local optimistic SQL: the client infers strict local UPDATEs from the write skill SQL, row params, and datasource descriptor. Keep `post_actions` focused on server cache invalidation and explicit refetch.
 
     | Type | Where | Effect |
     |---|---|---|
     | `invalidate: <key>` | Server + client | Clears server cache; marks source for re-fetch |
-    | `sql: <stmt>` | Client DuckDB | Runs UPDATE/INSERT locally; `{{source:x}}` → table, `{param}` → write params |
     | `refresh: <key>` | Client | Forces full re-fetch of a datasource |
+    | `sql: <stmt>` | Client DuckDB | Legacy fallback only. Prefer inferred optimistic updates + materialized projections. |
 
     ```yaml
     post_actions:
@@ -374,7 +402,7 @@ alwaysApply: false
     - Never SUM pre-computed ratios (ROI, CTR, CPC) — re-derive from components
     - Base SQL = ClickHouse syntax; projection/view/inline SQL = DuckDB syntax
     - Datasource access is derived from RBAC grants on the owning dashboard path
-    - Only `sql` accepted in inline widget datasource — no `type`, `source`, or `projections`
+    - Inline widget datasource accepts `sql` and optional `materialized: true` for rich_table; no `type`, `source`, or `projections`
   </hard_constraints>
 </rules>
 
