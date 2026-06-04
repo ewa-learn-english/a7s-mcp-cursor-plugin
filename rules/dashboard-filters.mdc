@@ -36,6 +36,7 @@ alwaysApply: false
         selection: {}                      # Optional. Selection behavior
         default: {}                        # Optional. Default value
         presets: []                        # Optional. Predefined presets
+        date_bounds: {}                    # Optional. date_range min/max limits
         # Boolean only:
         true_label: "Yes"                  # Optional (default: "Yes")
         false_label: "No"                  # Optional (default: "No")
@@ -85,6 +86,19 @@ alwaysApply: false
       max_selected: 5            # Max items allowed (1 = single-select mode)
     ```
   </selection_config>
+
+  <date_bounds_config>
+    For `date_range` filters, `date_bounds` controls selectable calendar limits. Without `date_bounds`, runtime behavior stays capped at `max: today` in the picker.
+
+    ```yaml
+    date_bounds:
+      min: current_year_start  # Optional. none | today | current_*_start/end | YYYY-MM-DD
+      max: current_month_end   # Optional. Default is today unless set to none
+    ```
+
+    Supported values: `none`, `today`, `current_month_start`, `current_month_end`, `current_quarter_start`, `current_quarter_end`, `current_year_start`, `current_year_end`, or a real `YYYY-MM-DD` date.
+    `mtd`/`qtd`/`ytd` presets remain to-date. `this_month`/`this_quarter`/`this_year` honor `date_bounds.max` (for example `current_month_end` selects the full unfinished month).
+  </date_bounds_config>
 
   <slider_config>
     ```yaml
@@ -219,6 +233,8 @@ alwaysApply: false
     - id: date_range
       type: date_range
       column: install_date
+      date_bounds:
+        max: current_month_end       # Allows selecting the full unfinished month
       presets:
         - { id: today, label: Today, tag: Live }
         - { id: yesterday, label: Yesterday, tag: Live }
