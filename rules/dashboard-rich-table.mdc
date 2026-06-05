@@ -6,7 +6,7 @@ alwaysApply: false
 
 <rule>
 <meta>
-  This rule covers the `rich_table` widget: columns, grouping, pivot, filtering, sorting, conditional formatting, data presets, actions, export, and visualization.
+  This rule covers the `rich_table` widget: columns, image values, grouping, pivot, filtering, sorting, conditional formatting, data presets, actions, export, and visualization.
   Activate when creating or editing rich_table widgets in dashboard YAML.
 </meta>
 
@@ -66,6 +66,7 @@ alwaysApply: false
       description: "..."                    # Optional. Header tooltip (also ai_hint fallback)
       ai_hint: "..."                        # Optional. AI context
       tooltip: {}                           # Optional. Programmable tooltip
+      render: {}                            # Optional. Image value renderer for dimension columns
       overflow:                             # Optional
         strategy: truncate                  #   truncate | wrap | expand
         tooltip: { enabled: true, maxWidth: 420 }
@@ -113,6 +114,45 @@ alwaysApply: false
     ```
   </column_width>
 
+  <image_values>
+    Image cells are configured through `render.type: image` on `dimension` columns only.
+    Skipper proxies, resizes, and caches image variants through `/api/media/image`; do not put raw remote image URLs into HTML/markdown to bypass this.
+
+    ```yaml
+    columns:
+      - id: creative_name
+        label: Creative
+        type: dimension
+
+      - id: creative_image
+        label: Image
+        type: dimension
+        width: { type: fixed, value: 132 }
+        render:
+          type: image
+          src_column: creative_image        # Optional. Defaults to this column id
+          alt_column: creative_name         # Optional. May reference hidden columns
+          fit: cover                        # cover | contain
+          placeholder: blur                 # blur | none
+          zoom: true                        # Click/Enter opens preview dialog
+          local_dir: media                  # local:// resolves inside dashboard/tab media/
+          allowed_domains:
+            - appewa.com
+            - "*.appewa.com"
+            - e2w2a.pro
+    ```
+
+    Supported source values:
+    - `https://...` — allowed domains only; route applies SSRF guards and resize/cache.
+    - `blob://root/key` — preferred for generated/synced assets, same BlobAdapter path used by notebook `.data/*.parquet`.
+    - `local://file.webp` — filesystem roots only, inside `local_dir` (default `media`).
+
+    Validation rules:
+    - `src_column` and `alt_column` must reference declared widget columns; use `hidden: true` for helper columns.
+    - `allowed_domains` entries are hostnames or leading wildcard patterns like `*.appewa.com`; no scheme/path/port.
+    - `local_dir` is relative and cannot contain `.` or `..` path segments.
+  </image_values>
+
   <visualization_styles>
     | Style | Description |
     |---|---|
@@ -128,7 +168,9 @@ alwaysApply: false
   </density_options>
 
   <row_heights>
-    `small` | `medium` | `large` | `xlarge` | `2xlarge`
+    `small` | `medium` | `large` | `xlarge` | `2xlarge` | `3xlarge` | `4xlarge`
+
+    Use `2xlarge` for compact thumbnails, `3xlarge` for inspection rows, and `4xlarge` for gallery-like image tables.
   </row_heights>
 
   <conditional_formatting_types>
