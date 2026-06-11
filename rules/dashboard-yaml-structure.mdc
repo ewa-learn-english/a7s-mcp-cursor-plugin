@@ -231,12 +231,9 @@ alwaysApply: false
     settings:
       default_dashboard: 01-marketing       # Optional. Default dashboard to open
     filter_groups: []                       # Optional. Group tabs with bound filters (→ dashboard-filters rule)
-    links:                                  # Optional. External links in sidebar
-      - title: Tableau
-        url: https://example.com
-        icon: /icons/tableau.png
-        external: true
     ```
+
+    Deprecated: do not use `+layout.yaml.links`. Folder links no longer render in the left sidebar; validation only keeps them as a warning for legacy files.
   </root_layout>
 
   <catalog_layout>
