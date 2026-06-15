@@ -6,7 +6,7 @@ alwaysApply: false
 
 <rule>
 <meta>
-  This rule covers the `rich_table` widget: columns, image values, grouping, pivot, filtering, sorting, conditional formatting, data presets, actions, export, and visualization.
+  This rule covers the `rich_table` widget: columns, image/video values, grouping, pivot, filtering, sorting, conditional formatting, data presets, actions, export, and visualization.
   Activate when creating or editing rich_table widgets in dashboard YAML.
 </meta>
 
@@ -66,7 +66,7 @@ alwaysApply: false
       description: "..."                    # Optional. Header tooltip (also ai_hint fallback)
       ai_hint: "..."                        # Optional. AI context
       tooltip: {}                           # Optional. Programmable tooltip
-      render: {}                            # Optional. Image value renderer for dimension columns
+      render: {}                            # Optional. Image/video value renderer for dimension columns
       overflow:                             # Optional
         strategy: truncate                  #   truncate | wrap | expand
         tooltip: { enabled: true, maxWidth: 420 }
@@ -153,6 +153,49 @@ alwaysApply: false
     - `local_dir` is relative and cannot contain `.` or `..` path segments.
   </image_values>
 
+  <video_values>
+    Video cells are configured through `render.type: video` on `dimension` columns only.
+    Skipper serves video bytes through `/api/media/video` with dashboard READ auth, source allowlists, SSRF guards, and byte-range support. The UI uses the browser's native `<video controls>` player; do not add custom player config to YAML.
+
+    ```yaml
+    columns:
+      - id: creative_name
+        label: Creative
+        type: dimension
+
+      - id: creative_video
+        label: Video
+        type: dimension
+        width: { type: fixed, value: 220 }
+        render:
+          type: video
+          src_column: video_uri             # Optional. Defaults to this column id
+          title_column: creative_name       # Optional. Accessible player label
+          poster_column: poster_uri         # Optional. Image poster; may reference hidden columns
+          fit: contain                      # cover | contain
+          preload: metadata                 # none | metadata | auto
+          local_dir: media                  # local:// resolves inside dashboard/tab media/
+          allowed_domains:
+            - appewa.com
+            - "*.appewa.com"
+            - e2w2a.pro
+    ```
+
+    Supported source values:
+    - `https://...` — allowed domains only; route applies SSRF guards and supports Range requests.
+    - `blob://root/key` — preferred for generated/synced assets, same BlobAdapter path used by notebook `.data/*.parquet`.
+    - `local://file.mp4` — filesystem roots only, inside `local_dir` (default `media`).
+
+    Supported video extensions: `.mp4`, `.m4v`, `.mov`, `.ogv`, `.webm`.
+    Supported poster extensions: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`.
+
+    Validation rules:
+    - `src_column`, `title_column`, and `poster_column` must reference declared widget columns; use `hidden: true` for helper URI/title columns.
+    - `allowed_domains` entries are hostnames or leading wildcard patterns like `*.appewa.com`; no scheme/path/port.
+    - `local_dir` is relative and cannot contain `.` or `..` path segments.
+    - Use `preload: none` for dense tables with many videos; use `metadata` when seek/duration readiness matters.
+  </video_values>
+
   <visualization_styles>
     | Style | Description |
     |---|---|
@@ -170,7 +213,7 @@ alwaysApply: false
   <row_heights>
     `small` | `medium` | `large` | `xlarge` | `2xlarge` | `3xlarge` | `4xlarge`
 
-    Use `2xlarge` for compact thumbnails, `3xlarge` for inspection rows, and `4xlarge` for gallery-like image tables.
+    Use `2xlarge` for compact thumbnails, `3xlarge` for inspection rows, and `4xlarge` for gallery-like image/video tables.
   </row_heights>
 
   <conditional_formatting_types>

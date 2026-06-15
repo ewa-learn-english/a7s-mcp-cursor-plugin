@@ -248,6 +248,7 @@
     - Choose palette from design system: diverging (`red_green`, `blue_orange`, `purple_teal`, `red_yellow_green`) or sequential (`green`, `blue`, `purple`, `orange`, `gray`)
     - Use `auto_hide: true` on optional columns that may be empty — hides when 100% null (opt-in, disabled by default)
     - For image values, use dimension-column `render: { type: image }` with proxied `https://`, `blob://`, or `local://` sources; use `2xlarge`–`4xlarge` row heights instead of freeform pixel heights
+    - For video values, use dimension-column `render: { type: video }` with native browser controls, proxied `https://`, `blob://`, or `local://` sources, `preload: none` for dense tables, and optional `poster_column` for polished previews
     - For write-skill tables over projected data, bind the table to a named projection with `materialized: true` so optimistic edits refresh from local DuckDB without page reload
 
     Standard ROI color scale:
