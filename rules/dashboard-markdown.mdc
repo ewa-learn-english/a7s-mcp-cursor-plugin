@@ -14,7 +14,7 @@ alwaysApply: false
   <engine>Eval-free template engine (no `new Function`, CSP-safe). Renders Markdown → HTML via `marked` + `DOMPurify`.</engine>
   <data_model>Inline SQL returns a single row. Each column becomes a template variable.</data_model>
   <notebook_markdown>In notebook mode, markdown widgets without datasource/template act as narrative cells and open in edit mode by default.</notebook_markdown>
-  <doc_markdown>In `mode: doc` tabs, markdown widgets are the primary Knowledge Base body. Prefer static `content:` for durable prose; use `template:` + inline DuckDB `datasource:` only when the document needs calculated values. Static doc content is processed into a cached, rebuildable DocsArtifact: sanitized HTML, plain text, headings, ai_hints, wiki_links, Mermaid/future embed refs, warnings, and contentHash.</doc_markdown>
+  <doc_markdown>In `mode: doc` tabs, markdown widgets are the primary Knowledge Base body. Prefer static `content:` for durable prose; use `template:` + inline DuckDB `datasource:` only when the document needs calculated values. Static doc content is processed into a cached, rebuildable DocsArtifact: sanitized HTML, plain text, headings, ai_hints, wiki_links, Mermaid/future embed refs, warnings, and contentHash. In composite directory tabs, `mode: doc` belongs in `_tab.yaml`, not in tab-content section files.</doc_markdown>
 </concepts>
 
 <schema>
@@ -73,6 +73,7 @@ alwaysApply: false
     ```
 
     Doc pages are normal dashboard tabs: source of truth is root YAML, canonical route is `/dashboards/<root>/<dashboard>/<tab>`, and RBAC uses the tab path. Do not introduce a separate docs store. The DocsArtifact cache is derived from YAML content and works with filesystem, MongoDB-backed, and in-memory roots.
+    Simple tab files may put `mode: doc` next to `sections`; composite directory tabs must put `mode: doc` in `<tab>/_tab.yaml`, while `<tab>/01-main.yaml` contains only `title`, optional `datasources`, and `sections`.
   </doc_page_body>
 </schema>
 
@@ -82,7 +83,7 @@ alwaysApply: false
 
     | Syntax | Purpose |
     |---|---|
-    | `[[target]]`, `[[target#anchor|label]]` | Same-dashboard wiki links; short links resolve target titles automatically and validation rejects broken links |
+    | `[[target]]`, `[[target#anchor|label]]` | KB wiki links within the current page group; short links resolve target titles automatically and validation rejects broken links |
     | `<!--ai_hint: ...-->` | Hidden LLM/search context; stripped from reader HTML and plain text |
     | `:::note`, `:::warning`, `:::danger`, `:::tip` | Callouts; close each block with `:::` |
     | `:::details{title="..."}` | Collapsible explanation block |
@@ -97,7 +98,9 @@ alwaysApply: false
 
   <authoring_rules>
     - Keep durable prose in static `content:` so the DocsArtifact can expose headings, plain text, links, and ai_hints to LLM/search consumers.
+    - Do not put `mode` or `runtime` in tab-content files such as `01-main.yaml`; keep tab mode in the simple tab file or `_tab.yaml`.
     - Use meaningful h2/h3 headings; they populate the desktop TOC, mobile Contents sheet, and future retrieval anchors.
+    - Good doc pages include a clear purpose, owner/review cadence, section-specific `<!--ai_hint: ...-->` comments, risks/caveats, procedural steps when relevant, and validated related reading.
     - Prefer `[[target]]` short links. Skipper displays the target page title automatically; use `[[target|custom label]]` only when the sentence needs different wording.
     - Link resolution is exact doc tab path/id first, then unambiguous leaf match with numeric filename prefixes ignored. Use explicit paths when a leaf could become ambiguous.
     - Use `[[target#heading-anchor]]` for deep links and keep anchors aligned with real headings. Validation fails unresolved links, ambiguous leaf matches, and missing anchors.

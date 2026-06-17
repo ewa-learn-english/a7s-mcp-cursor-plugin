@@ -15,7 +15,7 @@ alwaysApply: false
   <grid>12-column CSS grid (`grid grid-cols-12 gap-4`). Always 12 columns, always 16px gap.</grid>
   <widget_types>rich_table | markdown | chart — three types only, no others exist</widget_types>
   <notebook_mode>Tabs may use `mode: notebook` to render markdown narrative cells, executable SQL/Python datasource projections, and dependent widgets as an ordered notebook.</notebook_mode>
-  <doc_mode>Tabs may use `mode: doc` for Knowledge Base pages, handbooks, onboarding guides, and operating procedures. Doc tabs are normal dashboard tabs stored in root YAML, served at the normal tab URL, and protected by the same tab RBAC resource path.</doc_mode>
+  <doc_mode>Tabs may use `mode: doc` for Knowledge Base pages, handbooks, onboarding guides, and operating procedures. Doc tabs are normal dashboard tabs stored in root YAML, served at the normal tab URL, and protected by the same tab RBAC resource path. In composite directory tabs, put `mode: doc` in `_tab.yaml`, not in tab-content files.</doc_mode>
   <authoring_modes>
     - **Flat mode**: single YAML file per dashboard
     - **Directory mode**: strict separation — `_tab.yaml` = meta, `_shared/` = data definitions, `NN-*.yaml` = tab content
@@ -88,7 +88,7 @@ alwaysApply: false
     ```
     When `tabs` is present, top-level `sections` render above all tabs.
     In notebook mode, cells are ordered from markdown widgets and datasource projections with `code:`. Markdown cells open in edit mode by default; `Shift+Enter` is the primary run-and-advance shortcut for code cells.
-    In doc mode, the tab renders as a Knowledge Base reader surface. Use static markdown `content:` for durable prose, or `template:` + inline DuckDB `datasource:` when the prose needs calculated values. Do not create a separate `/docs` route or `kb_pages` store; root storage remains the source of truth.
+    In doc mode, the tab renders as a Knowledge Base reader surface. Use static markdown `content:` for durable prose, or `template:` + inline DuckDB `datasource:` when the prose needs calculated values. Do not create a separate `/docs` route or `kb_pages` store; root storage remains the source of truth. In directory mode, `mode: doc` belongs in `<tab>/_tab.yaml`; `<tab>/01-main.yaml` must not contain `mode` or `runtime`.
   </tab>
 
   <ai_config>
@@ -250,9 +250,8 @@ alwaysApply: false
     - Section styles: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `archive_grid` for static archives, `carousel` for curated shelves. `index` is legacy; prefer `archive_grid`.
     - Add card metadata in the tab file or `_tab.yaml`: `description`, `icon`, `tags`, `owner`, and optional `catalog_card: { accent, badge, label, search_text }`.
     - Use design-system accents only: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
-    - Reader mode is not part of catalog MVP; it is tracked separately in spec 108. Data-backed KPI/chart previews are tracked in spec 109.
+    - Catalog sections may include doc tabs (`mode: doc`) directly; card clicks open the KB reader at the normal tab URL. Data-backed KPI/chart previews are tracked in spec 109.
     - Do not confuse folder-level `layout: catalog` with section-level `layout: horizontal`.
-    - Catalog sections may include doc tabs (`mode: doc`) directly; card clicks still navigate to the normal tab URL.
   </catalog_layout>
 
   <knowledge_base_doc_mode>
@@ -263,6 +262,8 @@ alwaysApply: false
     title: Ops Handbook
     mode: doc
     description: Repeatable review rituals and operating notes.
+    tags: [ops, handbook]
+    owner: Product Analytics
     datasources: {}
     sections:
       - id: body
@@ -270,12 +271,23 @@ alwaysApply: false
           - id: article
             type: markdown
             content: |
-              ## Operating Rhythm
-              Capture durable context here.
+              <!--ai_hint: Canonical operating handbook. Add aliases, scope boundaries, and related-page context for retrieval. -->
+              ## Purpose
+              Explain who should read this page and when.
+
+              ## Procedure
+              :::steps
+              1. Confirm the current source of truth.
+              2. Follow the documented decision path.
+              3. Update related pages after the process changes.
+              :::
     ```
 
     Rules:
     - Doc tabs require no `runtime`; `runtime` remains notebook-only.
+    - Simple tab file placement: `NN-topic.yaml` may contain `mode: doc`, metadata, and `sections`.
+    - Composite directory placement: put `mode: doc`, `title`, `description`, `tags`, `owner`, and `catalog_card` in `NN-topic/_tab.yaml`; put only `title`, optional `datasources`, and `sections` in `NN-topic/01-main.yaml`.
+    - Do not put `mode` or `runtime` in tab-content files. The assembler reads tab mode only from the simple tab file or `_tab.yaml`.
     - Doc content is authored as normal dashboard/tab YAML and works with filesystem, MongoDB-backed roots, and in-memory content maps.
     - Static markdown `content:` feeds a cached, rebuildable DocsArtifact reader: sanitized HTML, plain text, section-aware headings for desktop/mobile navigation, ai_hints, wiki_links, embeds, warnings, and contentHash.
     - The DocsArtifact cache is derived from YAML and remains compatible with filesystem, MongoDB-backed, and in-memory roots. Root storage is always the source of truth.
@@ -286,6 +298,7 @@ alwaysApply: false
     - The reader side rail exposes `Back to Catalog` for catalog-backed pages and bucketed `On this page` / `Related pages` groups. Related pages show outgoing links first, then backlinks; reader/API responses RBAC-filter every item before exposing titles, hrefs, or snippets.
     - Keep calculated values in DuckDB-backed markdown templates or normal widgets; do not hardcode numbers in durable prose when they can be derived from data.
     - Use meaningful h2/h3 headings; they form reader navigation and future retrieval anchors.
+    - Good doc pages include clear purpose, owner/review cadence, section-specific `<!--ai_hint: ...-->` comments, risks/caveats, procedural steps when relevant, and validated related reading.
     - Reuse catalog layout for Knowledge Base indexes; do not introduce a second canonical docs collection.
   </knowledge_base_doc_mode>
 

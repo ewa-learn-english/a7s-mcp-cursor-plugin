@@ -30,13 +30,13 @@ alwaysApply: false
       title: "Web5 Costs"                   # Optional. Widget header title
       chart_title: "Revenue trend"          # Optional. Inside ECharts canvas
       preset: trend                         # Optional. Preset layout
-      chart_type: bar                       # Optional. line | bar | combo
+      chart_type: bar                       # Optional. line | bar | combo | scatter
       sort: value_desc                      # Optional. X-axis sort
       drill_down: true                      # Optional. Boolean or object
       y_inverse: false                      # Optional. Flip Y-axis
       x_axis:                               # Optional. Explicit X-axis field/format
         field: month_period                 # Optional. Column name; shorthand: x_axis: month_period
-        type: time                          # Optional. time | category
+        type: time                          # Optional. time | category | value
         label: Month                        # Optional. Axis label
         format: "yyyy-MM"                   # Optional. date-fns pattern for time axis ticks/tooltips
       legend_position: bottom               # Optional. bottom | left | right
@@ -59,6 +59,11 @@ alwaysApply: false
         format: currency                    # Optional. String alias OR object (see <format> below)
         y_axis: left                        # Optional. left | right (dual axis)
         line_width: 3                       # Optional. Line thickness px
+        trendline:                          # Optional. Scatter-only linear fit
+          type: linear
+          label: "Linear fit"              # Optional. Supports $value interpolation
+          show_r2: true                     # Optional. Append R2 to legend label
+          style: dashed                     # Optional. solid | dashed | dotted
         color_by_value:                     # Optional. Color by sign
           positive: success
           negative: destructive
@@ -123,7 +128,7 @@ alwaysApply: false
     x_axis: month_period
     ```
 
-    `format` accepts either a date-fns pattern string (recommended) or a timestamp object:
+    `format` accepts either a date-fns pattern string (recommended) or a timestamp object for time axes:
 
     ```yaml
     x_axis:
@@ -133,6 +138,16 @@ alwaysApply: false
     ```
 
     Applies to visible X-axis ticks and tooltip `{x}` / tooltip headers for standard, grouped, multi-track, comparison, and drill-down charts.
+    For dedicated scatter charts, use a numeric value axis and omit `format`. `x_axis.type: value` is scatter-only:
+
+    ```yaml
+    preset: scatter
+    x_axis:
+      field: signups
+      type: value
+      label: Signups
+    ```
+
     Raw-only `echarts_options` bypasses this adapter behavior; set ECharts `xAxis.axisLabel.formatter` manually there.
   </x_axis>
 </schema>
@@ -144,6 +159,7 @@ alwaysApply: false
     | `trend` | Time series | Line chart, date x-axis, auto-detects time column |
     | `comparison` | Year-over-year | Groups by year/period, overlays for comparison |
     | `breakdown` | Category splits | Stacked/grouped bars by category |
+    | `scatter` | Numeric correlations | Requires `x_axis.type: value`, optional trendline; incompatible with `tracks` and `drill_down` |
     | `loss_analysis` | Profit/loss | Horizontal bar, negative values go left |
     | `cohort` | Cohort curves | Multi-line, one per cohort group |
     | `multi_track` | Stacked panels | Each series → separate panel, shared X-axis |
@@ -155,6 +171,7 @@ alwaysApply: false
     | `line` | Line chart |
     | `bar` | Bar chart (vertical) |
     | `combo` | Mixed bar + line on same axes |
+    | `scatter` | Numeric X/Y points, optional bubble size |
   </chart_types>
 
   <sort_modes>
@@ -204,7 +221,7 @@ alwaysApply: false
   </adaptive_decimals>
 
   <data_interpolation>
-    Markers in `echarts_options`, `reference_lines`, `chart_title`, `series[].label`, `tracks[].title`:
+    Markers in `echarts_options`, `reference_lines`, `chart_title`, `x_axis.label`, `series[].label`, `series[].trendline.label`, `tracks[].title`:
 
     | Marker | Resolves to | Example |
     |---|---|---|
@@ -332,6 +349,73 @@ alwaysApply: false
         color: "#C084FC"
     ```
   </scatter_dynamic_size>
+
+  <scatter_correlation>
+    ```yaml
+    - id: revenue-correlation
+      type: chart
+      datasource: correlation_data
+      preset: scatter
+      title: "Scatter: signups vs revenue"
+      x_axis:
+        field: signups
+        type: value
+        label: "Signups (avg $value:signups:avg|round:0)"
+      series:
+        - metric: revenue
+          type: scatter
+          label: Revenue
+          format: currency
+          trendline:
+            type: linear
+            label: "Linear fit"
+            show_r2: true
+            style: dashed
+    ```
+  </scatter_correlation>
+
+  <bubble_scatter>
+    ```yaml
+    - id: revenue-bubble
+      type: chart
+      datasource: correlation_data
+      preset: scatter
+      x_axis: { field: signups, type: value, label: Signups }
+      series:
+        - metric: revenue
+          type: scatter
+          format: currency
+          symbol_size:
+            column: users
+            min: 6
+            max: 22
+          trendline: { type: linear, label: "Revenue fit" }
+    ```
+  </bubble_scatter>
+
+  <quadrant_scatter>
+    ```yaml
+    - id: revenue-quadrants
+      type: chart
+      datasource: correlation_data
+      preset: scatter
+      x_axis: { field: signups, type: value, label: Signups }
+      reference_lines:
+        - axis: x
+          value: "$value:signups:avg"
+          label: "Avg signups $value:signups:avg|round:0"
+          style: dashed
+        - axis: y
+          value: "$value:revenue:avg"
+          label: "Avg revenue $value:revenue:avg|round:0|currency"
+          style: dashed
+      series:
+        - metric: revenue
+          type: scatter
+          format: currency
+          symbol_size: 9
+    ```
+  </quadrant_scatter>
 
   <confidence_band>
     ```yaml
@@ -554,6 +638,11 @@ alwaysApply: false
     - `title` = widget header; `chart_title` = inside ECharts canvas
     - Use `x_axis.format: "yyyy-MM"` (or another date-fns pattern) when a time axis must show month/year instead of the default short day/month label
     - `band` columns and `symbol_size.column` are excluded from auto-detected metrics
+    - `preset: scatter` / `chart_type: scatter` requires `x_axis: { field: <numeric column>, type: value }` and at least one `series` metric
+    - `x_axis.type: value` is supported only for dedicated scatter charts
+    - Dedicated scatter charts are incompatible with `tracks` and `drill_down`
+    - `trendline` is scatter-only and not supported inside `tracks`
+    - `symbol_size` must be positive; dynamic `symbol_size.column` must be non-empty and `symbol_size.max` must be greater than `symbol_size.min`
     - Raw echarts mode bypasses all adapter logic; override mode deep-merges (objects merged, arrays replaced)
     - For metrics whose names don't match currency/percent keywords (`cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`, ...) you MUST set `format: currency` (or the appropriate type) on the series explicitly — auto-detection will fall back to `number` and strip the `$` / `%` symbol
   </hard_constraints>

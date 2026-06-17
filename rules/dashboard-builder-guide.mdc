@@ -76,28 +76,45 @@
   <knowledge_base_doc_tabs>
     Use `mode: doc` for Knowledge Base pages, handbooks, onboarding guides, runbooks, and operating procedures.
     Doc tabs are still normal dashboard tabs: they live in the same root-storage YAML, use the same canonical `/dashboards/<root>/<dashboard>/<tab>` URL, and inherit the same RBAC path as dashboard tabs.
+    Simple tab files may put `mode: doc` next to `sections`; composite directory tabs must put `mode: doc` in `<tab>/_tab.yaml`, while `<tab>/01-main.yaml` owns only tab-content fields such as `title`, `datasources`, and `sections`.
 
     ```yaml
     id: ops-handbook
     title: Ops Handbook
     mode: doc
     description: Repeatable review rituals and operating notes.
+    tags: [ops, handbook]
+    owner: Product Analytics
     sections:
       - id: body
         widgets:
           - id: article
             type: markdown
             content: |
-              ## Operating Rhythm
-              Capture durable context, links, and decisions here.
+              <!--ai_hint: Canonical operating handbook. Add aliases, scope boundaries, and related-page context for retrieval. -->
+              ## Purpose
+              Explain who should read this page and when.
+
+              :::note
+              Add validated wiki links only after target doc tabs and anchors exist.
+              :::
+
+              ## Procedure
+              :::steps
+              1. Confirm the current source of truth.
+              2. Follow the documented decision path.
+              3. Update related pages after the process changes.
+              :::
     ```
 
     Authoring guidance:
     - Prefer static markdown `content:` for durable prose and instructions.
     - Use `template:` + inline DuckDB `datasource:` only when the document needs calculated values.
+    - Do not put `mode` or `runtime` in tab-content files such as `01-main.yaml`; validation should reject misplaced tab metadata because assembly reads mode from the simple tab file or `_tab.yaml` only.
     - Static doc content derives a cached DocsArtifact from YAML: sanitized HTML, plain text, section-aware reader navigation headings, ai_hints, wiki_links, embeds, warnings, and contentHash.
     - DocsArtifact cache is rebuildable and storage-agnostic. Filesystem, MongoDB-backed, and in-memory roots use the same YAML source of truth.
     - Use meaningful h2/h3 headings; they drive the desktop TOC, mobile Contents sheet, and future retrieval anchors.
+    - Good doc pages include a clear purpose, owner/review cadence, section-specific `<!--ai_hint: ...-->` comments, risks/caveats, procedural steps when relevant, and validated related reading.
     - Prefer validated short wiki links: `[[retention-pulse]]` automatically displays the target page title; `[[retention-pulse|Retention read]]` overrides display text. `[[retention-pulse#operating-notes]]` deep-links to a heading anchor. Resolution checks exact path/id first, then unambiguous leaf matches with numeric prefixes ignored.
     - Never leave broken KB links. Validation rejects unresolved links, ambiguous leaf matches, and missing anchors before runtime; fix YAML instead of relying on broken-link UI.
     - The reader side rail buckets `On this page` and `Related pages`; related pages merge outgoing wiki links first, then backlinks, and reader/API responses RBAC-filter every item before exposing titles, hrefs, or snippets.
@@ -147,7 +164,7 @@
     - Choose section styles deliberately: `spotlight` for featured reads, `editorial` for mixed cards, `grid` for regular browse, `dense` for many items, `archive_grid` for static archives, `carousel` for curated shelves. `index` is legacy; prefer `archive_grid`.
     - Use accent colors from the design system: `blue`, `violet`, `amber`, `emerald`, `rose`, `cyan`, `teal`, `indigo`.
     - Use normal `tabs` layout for 3-7 frequently used operational tabs.
-    - Reader mode is separate follow-up work, not current catalog behavior. Data-backed KPI/chart previews belong to spec 109, not Phase 1.
+    - Catalog cards may navigate directly to `mode: doc` tab URLs and open the KB reader. Data-backed KPI/chart card previews belong to spec 109, not Phase 1.
   </catalog_layout>
 
   <naming_conventions>
@@ -285,6 +302,7 @@
     | Time series | `trend` | `series: [{ metric, type: line }]` |
     | YoY comparison | `comparison` | `drill_down: { columns: [year, month, day] }` |
     | Category bars | `breakdown` | `sort: value_desc` |
+    | Numeric correlation | `scatter` | `x_axis.type: value`, optional `trendline` |
     | Profit/loss | `loss_analysis` | horizontal bars |
     | Cohort curves | `cohort` | `series: [{ metric, type: line }]` |
     | Stacked panels | `multi_track` | `row_span: 2`, series as tracks |
