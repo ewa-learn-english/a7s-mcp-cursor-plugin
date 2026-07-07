@@ -43,6 +43,7 @@ alwaysApply: false
       reference_lines: []                   # Optional. Marker lines
       series: []                            # Optional. Series config
       tracks: []                            # Optional. Multi-track panels
+      stacking: {}                          # Optional. Stacking behavior (see <stacking>)
       tooltip: {}                           # Optional. Tooltip config
       legend: {}                            # Optional. Legend template
       echarts_options: {}                   # Optional. Raw ECharts overrides
@@ -77,8 +78,33 @@ alwaysApply: false
           column: weight
           min: 6
           max: 20
+        stack: revenue                      # Optional. Stack group id; series sharing an id stack together
+        label_template: "{value|compact}"   # Optional. Per-segment label ({value}/{percent}/{name}/{x} + pipes)
+        label_show: auto                     # Optional. auto | always | never (auto hides thin segments)
     ```
   </series_config>
+
+  <stacking>
+    Widget-level stacking behavior. Set a stacking preset (`stacked_bar` / `stacked_area`) or a
+    `stacking` object; individual series opt in via `series[].stack` (an explicit group id wins).
+
+    ```yaml
+    stacking:
+      mode: normal          # normal | percent (percent = 100% normalized per column)
+      group: revenue        # Default stack id for series without `stack` + long-format auto-series
+      order: value_desc     # as_listed | value_desc | value_asc (bottom→top segment order)
+      show_total: true      # Total label above each full column (opt-in)
+      total_template: "{total|compact}"   # {total} and {x} only (+ pipes)
+      total_format: currency               # Format for {total} when no pipe given
+      separators: true      # 1px gap between stacked bar segments
+    ```
+
+    - Series sharing a `stack` id (or grouped by a stacking preset/object) stack on top of each other.
+    - A stack group must be all bars or all areas, and must share one `y_axis`.
+    - In `percent` mode the total label shows the raw sum (not "100%").
+    - `stack` is incompatible with `color_by_value`, `band`, `trendline`, and `scatter`.
+    - Long-format data (x + group column + one value column) auto-stacks every group into one group.
+  </stacking>
 
   <format>
     Chart `format` accepts either a string alias (`currency`, `percent`, `number`, `compact`, `bytes`, `duration`, `percent_value`, `timestamp`) or a rich object:
@@ -158,11 +184,13 @@ alwaysApply: false
     |---|---|---|
     | `trend` | Time series | Line chart, date x-axis, auto-detects time column |
     | `comparison` | Year-over-year | Groups by year/period, overlays for comparison |
-    | `breakdown` | Category splits | Stacked/grouped bars by category |
+    | `breakdown` | Category splits | Grouped (side-by-side) bars by category — NOT stacked. Use `stacked_bar` for stacking |
+    | `stacked_bar` | Distribution over time/category | Vertical bars stacked into one group; rounded top cap, segment separators, legend on |
+    | `stacked_area` | Cumulative trend | Stacked lines with gradient area fills, smooth, no symbols |
     | `scatter` | Numeric correlations | Requires `x_axis.type: value`, optional trendline; incompatible with `tracks` and `drill_down` |
     | `loss_analysis` | Profit/loss | Horizontal bar, negative values go left |
     | `cohort` | Cohort curves | Multi-line, one per cohort group |
-    | `multi_track` | Stacked panels | Each series → separate panel, shared X-axis |
+    | `multi_track` | Separate panels | Each series → separate panel, shared X-axis |
   </presets>
 
   <chart_types>
@@ -288,6 +316,58 @@ alwaysApply: false
         - metric: profit
     ```
   </loss_analysis>
+
+  <stacked_bar>
+    Wide-format (multiple metric columns), with total labels:
+    ```yaml
+    - id: revenue-by-source
+      type: chart
+      datasource: revenue_by_source_daily
+      preset: stacked_bar
+      stacking: { show_total: true, total_format: currency }
+      series:
+        - { metric: organic, color: primary }
+        - { metric: paid, color: secondary }
+        - { metric: referral, color: info }
+    ```
+
+    Long-format (one group column) at 100%:
+    ```yaml
+    - id: rev-mix
+      type: chart
+      datasource: crm_activity_revenue   # columns: transaction_date, crm_channel, revenue_net
+      preset: stacked_bar
+      stacking: { mode: percent }
+      series:
+        - metric: revenue_net
+    ```
+
+    Partial stack + independent line (explicit `stack` id):
+    ```yaml
+    - id: revenue-with-target
+      type: chart
+      datasource: revenue_by_source_daily
+      chart_type: bar
+      series:
+        - { metric: organic, stack: revenue }
+        - { metric: paid, stack: revenue }
+        - { metric: target, type: line, color: warning }   # no stack → independent
+    ```
+  </stacked_bar>
+
+  <stacked_area>
+    ```yaml
+    - id: traffic-stacked
+      type: chart
+      datasource: sessions_by_channel
+      preset: stacked_area
+      stacking: { mode: percent }
+      series:
+        - { metric: direct, color: primary }
+        - { metric: search, color: secondary }
+        - { metric: social, color: accent }
+    ```
+  </stacked_area>
 
   <multi_track_explicit>
     ```yaml
@@ -645,6 +725,10 @@ alwaysApply: false
     - `symbol_size` must be positive; dynamic `symbol_size.column` must be non-empty and `symbol_size.max` must be greater than `symbol_size.min`
     - Raw echarts mode bypasses all adapter logic; override mode deep-merges (objects merged, arrays replaced)
     - For metrics whose names don't match currency/percent keywords (`cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`, ...) you MUST set `format: currency` (or the appropriate type) on the series explicitly — auto-detection will fall back to `number` and strip the `$` / `%` symbol
+    - `breakdown` renders GROUPED (side-by-side) bars, not stacked; use `stacked_bar` / `stacked_area` or `series[].stack` for stacking
+    - A stack group must be all bars or all areas and share one `y_axis`; `stack` cannot combine with `color_by_value`, `band`, `trendline`, or scatter
+    - `stacked_bar` / `stacked_area` presets are incompatible with `tracks` (use `series[].stack` inside `tracks[].series` for in-panel stacking)
+    - `stacking.mode: percent` requires at least two stacked series; `stacking.total_template` supports only `{total}` and `{x}`
   </hard_constraints>
 </rules>
 
