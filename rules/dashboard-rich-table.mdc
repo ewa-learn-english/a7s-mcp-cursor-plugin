@@ -241,10 +241,18 @@ alwaysApply: false
     | `badge` | Compact pill with the formatted value. |
     | `none` | Plain text (default). |
 
-    Validation rules:
-    - `lines` must be non-empty; every `line.column` must reference a declared widget column.
+    Stacked cells are **display-only** — the column holds no data of its own. Point `sorting`, filtering, and `selection` at the underlying (usually `hidden: true`) columns, never at the stacked column id.
+
+    Validation rules (hard errors — fail `a7s validate`):
+    - `lines` must have 1-3 entries. The anatomy is fixed: `primary` / `secondary` / `tertiary`; there is no fourth tier.
+    - Every `line.column` must reference a declared widget column.
+    - A line cannot reference the stacked column itself, nor another `stacked` column (no nesting).
     - Per-line `format` overrides the referenced column's format; otherwise the referenced column's format/mapping is inherited.
-    - Give stacked columns vertical room: use `visualization.row_height: xlarge` for two lines, larger for three.
+
+    Validation warnings (non-fatal, but fix them):
+    - Give stacked columns vertical room via `visualization.row_height`: **2 lines → `large`, 3 lines → `xlarge`** (the default density fits ~1 line). Too small a row height clips the cell.
+    - `indicator: trend` should target a numeric column (a `metric`/`calculated` column, or a line/column with a numeric `format` such as `trend`/`currency`/`number`/`percent`). The arrow only renders for numeric values.
+    - `indicator: dot` should provide a `mapping` (on the line or the referenced column) so the value resolves to a status token (`success`/`warning`/`destructive`/`neutral`). Without one the dot falls back to neutral.
   </stacked_values>
 
   <visualization_styles>
