@@ -727,8 +727,9 @@ alwaysApply: false
     - For metrics whose names don't match currency/percent keywords (`cpa`, `cpm`, `arpu`, `ltv`, `aov`, `ecpm`, ...) you MUST set `format: currency` (or the appropriate type) on the series explicitly — auto-detection will fall back to `number` and strip the `$` / `%` symbol
     - `breakdown` renders GROUPED (side-by-side) bars, not stacked; use `stacked_bar` / `stacked_area` or `series[].stack` for stacking
     - A stack group must be all bars or all areas and share one `y_axis`; `stack` cannot combine with `color_by_value`, `band`, `trendline`, or scatter
-    - `stacked_bar` / `stacked_area` presets are incompatible with `tracks` (use `series[].stack` inside `tracks[].series` for in-panel stacking)
-    - `stacking.mode: percent` requires at least two stacked series; `stacking.total_template` supports only `{total}` and `{x}`
+    - `stacked_bar` / `stacked_area` presets are incompatible with `tracks`; put `series[].stack` inside `tracks[].series` for in-panel (per-track, normal-mode) stacking instead
+    - `stacking.total_template` supports only `{total}` and `{x}` (not `{value}`)
+    - `stacking.mode: percent` normalizes each column to 100%; use it with a group column (long-format) or 2+ stacked series — a single wide-format metric renders a flat 100% band
   </hard_constraints>
 </rules>
 
