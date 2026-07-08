@@ -66,7 +66,7 @@ alwaysApply: false
       description: "..."                    # Optional. Header tooltip (also ai_hint fallback)
       ai_hint: "..."                        # Optional. AI context
       tooltip: {}                           # Optional. Programmable tooltip
-      render: {}                            # Optional. Image/video value renderer for dimension columns
+      render: {}                            # Optional. Image/video renderer (dimension) or stacked cell (any column)
       overflow:                             # Optional
         strategy: truncate                  #   truncate | wrap | expand
         tooltip: { enabled: true, maxWidth: 420 }
@@ -195,6 +195,57 @@ alwaysApply: false
     - `local_dir` is relative and cannot contain `.` or `..` path segments.
     - Use `preload: none` for dense tables with many videos; use `metadata` when seek/duration readiness matters.
   </video_values>
+
+  <stacked_values>
+    Stacked cells compose 2-3 formatted values into a single cell via `render.type: stacked`. One data row stays one table row (no extra rows are inserted). Unlike image/video, stacked render is allowed on `dimension`, `metric`, and `calculated` columns.
+
+    Each `line` references a declared column (usually `hidden: true`), picks a typographic `role`, and may carry an inline `indicator`.
+
+    ```yaml
+    columns:
+      - id: spend
+        type: metric
+        aggregate: sum
+        hidden: true
+        format: { type: currency, decimals: 0 }
+      - id: roas_delta
+        type: metric
+        aggregate: avg
+        hidden: true
+        format: { type: trend, decimals: 1, suffix: "%" }
+      - id: delivery_status
+        type: dimension
+        hidden: true
+
+      - id: performance
+        label: Performance
+        type: dimension
+        width: { type: fixed, value: 220 }
+        render:
+          type: stacked
+          gap: compact                       # compact | cozy  (vertical spacing)
+          align: start                       # start | center | end
+          lines:
+            - { column: spend, role: primary }
+            - { column: roas_delta, role: secondary, indicator: trend }
+            - { column: delivery_status, role: tertiary, indicator: dot, mapping: { id: status_dot } }
+    ```
+
+    Roles: `primary` (headline, emphasized), `secondary` / `tertiary` (progressively muted, smaller).
+
+    Line indicators:
+    | Indicator | Renders |
+    |---|---|
+    | `trend` | Reuses `format.type: trend` — arrow (▲/▼/—) + sign + semantic color. Referenced column should use a `trend` format. |
+    | `dot` | Semantic status dot; resolve the color token through the line `mapping` (e.g. `success`/`warning`/`destructive`/`neutral`). Exposes an accessible label. |
+    | `badge` | Compact pill with the formatted value. |
+    | `none` | Plain text (default). |
+
+    Validation rules:
+    - `lines` must be non-empty; every `line.column` must reference a declared widget column.
+    - Per-line `format` overrides the referenced column's format; otherwise the referenced column's format/mapping is inherited.
+    - Give stacked columns vertical room: use `visualization.row_height: xlarge` for two lines, larger for three.
+  </stacked_values>
 
   <visualization_styles>
     | Style | Description |
