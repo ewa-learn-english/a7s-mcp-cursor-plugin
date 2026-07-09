@@ -241,7 +241,7 @@ alwaysApply: false
     | `badge` | Compact pill with the formatted value. |
     | `none` | Plain text (default). |
 
-    Stacked cells are **display-only** — the column holds no data of its own. Point `sorting`, filtering, and `selection` at the underlying (usually `hidden: true`) columns, never at the stacked column id.
+    Stacked cells are **display-only** — the column holds no data of its own. Sorting the stacked column header and CSV export automatically use the **primary line** (the `role: primary` line, or the first line): the header sorts by that underlying value and the export writes it under the stacked column's label. Filtering and `selection` still target the underlying (usually `hidden: true`) columns by their own ids.
 
     Validation rules (hard errors — fail `a7s validate`):
     - `lines` must have 1-3 entries. The anatomy is fixed: `primary` / `secondary` / `tertiary`; there is no fourth tier.
