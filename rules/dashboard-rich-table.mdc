@@ -522,11 +522,16 @@ alwaysApply: false
         href: "{resource_url}"               # full URL from row data
         when: "resource_url != ''"
       pause:
-        label: Pause Campaign
-        icon: pause
+        label: Set status from list
+        icon: list-checks
         quick: true                          # Show inline, not in dropdown
-        when: "effective_status = 'ACTIVE'"  # Conditional visibility
-        skill: pause_campaign                # Write skill datasource key
+        skill: set_campaign_status           # Write skill datasource key
+        dialog:
+          title: Set campaign status
+          summary:
+            title: "Campaign: {name}"         # Row-value template
+            description: "Current status: {status}"
+          submit_label: "Set {input.target_status.value_title}"
       archive:
         label: Archive Campaign
         icon: archive
@@ -541,6 +546,32 @@ alwaysApply: false
       action; `invalid_href: placeholder` shows a non-clickable invalid marker.
     - Dangerous schemes (`javascript:`, `data:`, `vbscript:`) are rejected by
       validation and blocked at runtime.
+
+    Skill action dialogs may define `title`, `summary.title`, `summary.description`, and
+    `submit_label`. Row placeholders use `{column_id}`. A SQL select input exposes
+    `{input.<name>.value}`, `.value_title`, `.value_label`, and `.value_meta`; normalized option
+    counts are `{options.completed_count}`, `{options.total_count}`, and
+    `{options.available_count}`. Templates update from the current React selection, not from the
+    option row's initial `selected` hint.
+
+    ```yaml
+    upload_video:
+      label: Upload to Meta Ads
+      icon: upload
+      quick: true
+      when: "media_kind = 'video'"
+      skill: upload_meta_video
+      dialog:
+        title: Upload to Meta Ads
+        summary:
+          title: "Creative: {creative_name}"
+          description: "Uploaded to {options.completed_count} of {options.total_count} accounts"
+        submit_label: "Upload to {input.target_account_id.value_title}"
+    ```
+
+    Keep image and video actions mutually exclusive with `when`. In the P0 sample both resolve only
+    to explicitly dry-run-only registry operations; they do not authorize real media download or Meta
+    upload.
   </actions>
 
   <editable_columns>

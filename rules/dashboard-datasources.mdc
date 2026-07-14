@@ -23,7 +23,7 @@ alwaysApply: false
     |---|---|---|---|
     | ClickHouse | omitted | ClickHouse | Remote fetch → Parquet → DuckDB |
     | View | `view` | DuckDB | Local DuckDB VIEW from `{{source:*}}` refs |
-    | Skill | `skill` | dot-notation | Server-side API call → Parquet → DuckDB |
+    | Skill | `skill` | dot-notation | Server-side API read or guarded write skill |
     | Platform | `_` prefix key | — | Internal store (MongoDB) → Parquet → DuckDB |
   </datasource_types>
 </concepts>
@@ -42,6 +42,8 @@ alwaysApply: false
         default_projection: daily_costs     # Optional. Default for widgets
         cache_ttl: 300                      # Optional. Skill cache TTL in seconds
         input: []                           # Optional. Skill user input fields
+        activity:                           # Optional. Safe params copied to activity
+          params: [business_key]
         post_actions: []                    # Optional. Post-write hooks
         post_each_actions: []               # Optional. Per-entity post-write hooks
         ai_hint: "..."                      # Optional. AI context (string or string[])
@@ -249,6 +251,62 @@ alwaysApply: false
       - sql: UPDATE {{source:fb_campaigns}} SET daily_budget = {new_budget} WHERE id = {id}
     ```
   </post_actions>
+
+  <sql_select_skill_input>
+    A write skill may request one SQL-backed single-select value. Its options query runs locally in
+    DuckDB when the action dialog opens; it is not a remote datasource query. Keep it to one read-only
+    `SELECT` statement and reference dependencies through `{{source:key}}`. Platform dependencies such
+    as `{{source:_platform.v1.activity_log.24h}}` are resolved into the skill descriptor like any other
+    dependency.
+
+    ```yaml
+    input:
+      - name: target_status
+        type: select
+        label: Select campaign status
+        required: true
+        options:
+          sql: |
+            SELECT
+              value,                         -- required submitted scalar
+              value_title,                   -- optional primary option text
+              'Campaign status' AS value_label,
+              NULL AS value_meta,
+              (value = {status}) AS selected,
+              FALSE AS disabled,
+              FALSE AS completed
+            FROM (VALUES
+              ('ACTIVE', 'Active', 1),
+              ('PAUSED', 'Paused', 2)
+            ) AS statuses(value, value_title, sort_order)
+            ORDER BY sort_order
+    ```
+
+    Option columns:
+    - `value` is required and becomes the flat write param (`{target_status}` above).
+    - `value_title`, `value_label`, and `value_meta` are optional presentation strings.
+    - `selected`, `disabled`, and `completed` accept booleans or `0`/`1`.
+    - `selected` is only the initial/current-value hint. It does not disable or complete an option,
+      and the current user choice lives in React after the dialog opens.
+    - If exactly one available row has `selected = 1`, it is the initial choice. Otherwise the first
+      available row in deterministic SQL order is selected. Completed or disabled rows are never
+      available.
+
+    Options SQL is executed through prepared statements for scalar row placeholders. Do not concatenate URLs,
+    credentials, tokens, or other secrets into the query.
+  </sql_select_skill_input>
+
+  <write_skill_activity>
+    `activity.params` is an allowlist for safe business correlation fields copied to successful action
+    activity. Use only fields needed by board SQL, for example `[ad_id, target_account_id]`; never include
+    credentials, tokens, authorization headers, or unrestricted payloads. The same allowlist/redaction
+    projection is applied to action-log and execution diagnostics.
+
+    A board may overlay recent successful activity on delayed history, but it must compute state as a
+    SQL `UNION` with business-key deduplication. Do not add a Skipper-owned ledger, queue, reservation,
+    or durable operation state. For upload state, deduplicate by `(ad_id, target_account_id)` and refresh
+    both the platform activity datasource and the dependent local view after success.
+  </write_skill_activity>
 </options>
 
 <examples>
@@ -279,22 +337,29 @@ alwaysApply: false
     pause_campaign:
       type: skill
       sql: |
-        WITH current AS (
-          SELECT id, status FROM fb.{id}.getCampaign
+        WITH error__target_status_allowed AS (
+          SELECT 1
+          FROM (VALUES ('ACTIVE'), ('PAUSED')) AS allowed(value)
+          WHERE value = '{target_status}'
         ),
-        error__invalid_state AS (
-          SELECT id FROM current WHERE status IN ('ACTIVE', 'PAUSED')
-        ),
-        discard__already_paused AS (
-          SELECT id FROM current WHERE status = 'PAUSED'
+        discard__same_status AS (
+          SELECT 'Campaign already has this status' AS message
+          WHERE '{status}' = '{target_status}'
         )
         UPDATE fb.{id}.updateCampaign
-        SET status = 'PAUSED'
+        SET status = {target_status}
+        WHERE campaign_id = {id}
       input:
-        - name: new_budget
-          type: currency
-          label: New Daily Budget
-          default: "{daily_budget}"
+        - name: target_status
+          type: select
+          label: Select campaign status
+          required: true
+          options:
+            sql: |
+              SELECT value, value AS value_title, (value = {status}) AS selected,
+                     FALSE AS disabled, FALSE AS completed
+              FROM (VALUES ('ACTIVE', 1), ('PAUSED', 2)) AS statuses(value, sort_order)
+              ORDER BY sort_order
     ```
 
     CTE verdict convention:
@@ -305,6 +370,29 @@ alwaysApply: false
     | `confirm__<name>` | Returns rows | CONFIRM (requires re-send) |
     | `discard__<name>` | Returns rows | DISCARD (no-op) |
   </skill_write>
+
+  <skill_single_row_insert>
+    Write skills also support one explicit-column `INSERT INTO ... (columns) VALUES (...)` statement.
+    Multi-row `VALUES`, `INSERT ... SELECT`, bulk jobs, and client-side media transport are not supported.
+
+    ```yaml
+    upload_meta_video:
+      type: skill
+      activity:
+        params: [ad_id, target_account_id]
+      sql: |
+        INSERT INTO fb.{target_account_id}.uploadAdVideo (source, title)
+        VALUES ({media_url}, {creative_name})
+      post_actions:
+        - refresh: _platform.v1.activity_log.24h
+        - refresh: creative_upload_state__view
+    ```
+
+    The sample `dashboards/product/samples/19-e2e-skill-select-action/` is deliberately network-free:
+    `uploadAdImage`/`uploadAdVideo` are registry operations marked `x-a7s-dry-run-only` and require
+    `SKILLS_DRY_RUN=true`. A non-dry-run executor rejects them before URL construction, logging, rate
+    limiting, or `fetch`. Do not treat this P0 polygon as real Drive/Meta transfer support.
+  </skill_single_row_insert>
 
   <shared_datasources>
     ```yaml
@@ -403,6 +491,9 @@ alwaysApply: false
     - Base SQL = ClickHouse syntax; projection/view/inline SQL = DuckDB syntax
     - Datasource access is derived from RBAC grants on the owning dashboard path
     - Inline widget datasource accepts `sql` and optional `materialized: true` for rich_table; no `type`, `source`, or `projections`
+    - SQL-backed skill inputs are single-select only; options SQL is one local read-only SELECT
+    - Write INSERT support is one row only: `INSERT INTO ... (columns) VALUES (...)`
+    - Upload polygon operations are dry-run-only; do not add credentials or real media transport
   </hard_constraints>
 </rules>
 
