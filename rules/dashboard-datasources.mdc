@@ -390,8 +390,10 @@ alwaysApply: false
 
     `source` is a logical directly downloadable HTTPS URL prepared only in server-side execution and
     removed before base64/multipart encoding. Credentials and host allowlists belong only in the
-    trusted server source registry/environment, never dashboard authoring YAML or client params. `uploadAdImage`/`uploadAdVideo` remain
-    `x-a7s-dry-run-only` and require `SKILLS_DRY_RUN=true`; P1 enables no real Meta upload.
+    trusted server source registry/environment, never dashboard authoring YAML or client params.
+    `uploadAdImage`/`uploadAdVideo` use the normal server HTTP executor. Local development points
+    `FB_API_BASE_URL` to MockServer so image base64 and streaming multipart can be exercised without
+    real credentials.
   </skill_single_row_insert>
 
   <shared_datasources>
@@ -493,7 +495,7 @@ alwaysApply: false
     - Inline widget datasource accepts `sql` and optional `materialized: true` for rich_table; no `type`, `source`, or `projections`
     - SQL-backed skill inputs are single-select only; options SQL is one local read-only SELECT
     - Write INSERT support is one row only: `INSERT INTO ... (columns) VALUES (...)`
-    - Upload polygon operations are dry-run-only; do not add credentials or real media transport
+    - Upload transport and credentials come only from trusted source configuration; never dashboard authoring
   </hard_constraints>
 </rules>
 

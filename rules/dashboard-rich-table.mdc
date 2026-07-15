@@ -573,8 +573,8 @@ alwaysApply: false
     directly downloadable HTTPS URL. Remote media is prepared only in server-side execution and the
     URL is removed before Meta-compatible base64 or multipart encoding; credentials and host
     allowlists belong only in the trusted server source registry/environment, never dashboard
-    authoring YAML or client params. The registered upload operations
-    remain explicitly dry-run-only in P1, so this contract still does not authorize a real Meta upload.
+    authoring YAML or client params. The registered upload operations use the normal server HTTP
+    executor; local development routes it to MockServer through trusted source configuration.
   </actions>
 
   <editable_columns>
