@@ -253,11 +253,12 @@ alwaysApply: false
   </post_actions>
 
   <sql_select_skill_input>
-    A write skill may request one SQL-backed single-select value. Its options query runs locally in
-    DuckDB when the action dialog opens; it is not a remote datasource query. Keep it to one read-only
-    `SELECT` statement and reference dependencies through `{{source:key}}`. Platform dependencies such
-    as `{{source:_platform.v1.activity_log.24h}}` are resolved into the skill descriptor like any other
-    dependency.
+    A write skill may request one or more independent SQL-backed single-select values. Each input
+    submits one scalar; this does not enable multi-select or bulk execution. Its options query runs
+    locally in DuckDB when the action dialog opens, not as a remote datasource query. Keep each query
+    to one read-only `SELECT` statement and reference dependencies through `{{source:key}}`. Platform
+    dependencies such as `{{source:_platform.v1.activity_log.24h}}` are resolved into the skill
+    descriptor like any other dependency.
 
     ```yaml
     input:
@@ -391,9 +392,9 @@ alwaysApply: false
     `source` is a logical directly downloadable HTTPS URL prepared only in server-side execution and
     removed before base64/multipart encoding. Credentials and host allowlists belong only in the
     trusted server source registry/environment, never dashboard authoring YAML or client params.
-    `uploadAdImage`/`uploadAdVideo` use the normal server HTTP executor. Local development points
-    `FB_API_BASE_URL` to MockServer so image base64 and streaming multipart can be exercised without
-    real credentials.
+    `uploadAdImage`/`uploadAdVideo` use the normal server HTTP executor. The default local/compose source
+    configuration resolves `FB_API_BASE_URL` and `FB_ACCESS_TOKEN` to the MockServer URL and dedicated
+    mock token so image base64 and streaming multipart can be exercised without real credentials.
   </skill_single_row_insert>
 
   <shared_datasources>

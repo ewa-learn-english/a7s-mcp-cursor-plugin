@@ -1,5 +1,5 @@
 ---
-description: Rich table widget — columns, grouping, pivot, filtering, formatting, visualization, layout
+description: Rich table widget — columns, row actions, write-skill dialogs, grouping, filtering, formatting, and layout
 globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
@@ -574,7 +574,8 @@ alwaysApply: false
     URL is removed before Meta-compatible base64 or multipart encoding; credentials and host
     allowlists belong only in the trusted server source registry/environment, never dashboard
     authoring YAML or client params. The registered upload operations use the normal server HTTP
-    executor; local development routes it to MockServer through trusted source configuration.
+    executor; the default local/compose source configuration resolves `FB_API_BASE_URL` and `FB_ACCESS_TOKEN` to
+    the MockServer URL and dedicated mock token. Dashboard YAML cannot select the endpoint or token.
   </actions>
 
   <editable_columns>
