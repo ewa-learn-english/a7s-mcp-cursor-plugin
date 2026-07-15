@@ -569,9 +569,12 @@ alwaysApply: false
         submit_label: "Upload to {input.target_account_id.value_title}"
     ```
 
-    Keep image and video actions mutually exclusive with `when`. In the P0 sample both resolve only
-    to explicitly dry-run-only registry operations; they do not authorize real media download or Meta
-    upload.
+    Keep image and video actions mutually exclusive with `when`. The `source` value is a logical,
+    directly downloadable HTTPS URL. Remote media is prepared only in server-side execution and the
+    URL is removed before Meta-compatible base64 or multipart encoding; credentials and host
+    allowlists belong only in the trusted server source registry/environment, never dashboard
+    authoring YAML or client params. The registered upload operations
+    remain explicitly dry-run-only in P1, so this contract still does not authorize a real Meta upload.
   </actions>
 
   <editable_columns>

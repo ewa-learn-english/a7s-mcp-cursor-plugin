@@ -388,10 +388,10 @@ alwaysApply: false
         - refresh: creative_upload_state__view
     ```
 
-    The sample `dashboards/product/samples/19-e2e-skill-select-action/` is deliberately network-free:
-    `uploadAdImage`/`uploadAdVideo` are registry operations marked `x-a7s-dry-run-only` and require
-    `SKILLS_DRY_RUN=true`. A non-dry-run executor rejects them before URL construction, logging, rate
-    limiting, or `fetch`. Do not treat this P0 polygon as real Drive/Meta transfer support.
+    `source` is a logical directly downloadable HTTPS URL prepared only in server-side execution and
+    removed before base64/multipart encoding. Credentials and host allowlists belong only in the
+    trusted server source registry/environment, never dashboard authoring YAML or client params. `uploadAdImage`/`uploadAdVideo` remain
+    `x-a7s-dry-run-only` and require `SKILLS_DRY_RUN=true`; P1 enables no real Meta upload.
   </skill_single_row_insert>
 
   <shared_datasources>
