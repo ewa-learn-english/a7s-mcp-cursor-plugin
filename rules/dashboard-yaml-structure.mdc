@@ -472,10 +472,11 @@ alwaysApply: false
   </canonical_urls>
 
   <mcp_resources>
-    - `skipper://roots` — configured roots list
+    - `skipper://roots` — configured roots list (API-token MCP sessions RBAC-filter this to grant-readable roots only)
     - `skipper://roots/<root>/changelog` — product changelog
     - `skipper://query-results/{id}` — ephemeral CSV (1h TTL, lazy-evaluated)
-    - `update_root_changelog` MCP tool updates `_changelog.yaml`
+    - `update_root_changelog` MCP tool updates `_changelog.yaml` (requires WRITE/DEPLOY on the API-token MCP path; tool is not registered for READ-only tokens)
+    - MCP instructions for API-token sessions list readable roots and whether CRUD tools are available — follow them; do not invent roots outside that list
   </mcp_resources>
 </patterns>
 
@@ -494,6 +495,9 @@ alwaysApply: false
     - Dashboard paths are the canonical RBAC resource namespace
     - Access is granted through org-level grants, not YAML-local declarations
     - Keep root/dashboard/tab IDs stable — renaming changes RBAC resource names
+    - API-token MCP (`/api/mcp`) threads token grants + scopes: readable roots are filtered; CRUD tools require WRITE or DEPLOY
+    - Works the same for filesystem and MongoDB-backed root storage — never assume local file paths from MCP
+    - Server notebook EXECUTE is superadmin-only until the Python sandbox ships; live workspaces auto-grant READ|WRITE|DEPLOY for the owner but never EXECUTE
   </rbac_notes>
 
   <multi_root_input>
