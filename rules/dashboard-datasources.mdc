@@ -488,9 +488,10 @@ alwaysApply: false
 <rules>
   <hard_constraints>
     - Widgets MUST NOT make remote calls — all data from local DuckDB
-    - Use `{{source:key}}` in projection/view/markdown SQL — never hardcode table names
-    - Use `${filters.id}` in SQL — never hardcode date ranges
-    - Never SUM pre-computed ratios (ROI, CTR, CPC) — re-derive from components
+    - NEVER hardcode table names in widget SQL — reference datasources via {{source:key}}.
+    - NEVER hardcode date ranges — use ${filters.*} macros so dashboard filters reach the SQL.
+    - NEVER SUM pre-computed ratios (ROI, CTR, CPC, ARPU) — re-derive them from components.
+    - Always guard division by zero: NULLIF(denominator, 0).
     - Base SQL = ClickHouse syntax; projection/view/inline SQL = DuckDB syntax
     - Datasource access is derived from RBAC grants on the owning dashboard path
     - Inline widget datasource accepts `sql` and optional `materialized: true` for rich_table; no `type`, `source`, or `projections`
@@ -505,6 +506,6 @@ alwaysApply: false
   - `dashboard-filters` — filter types, hierarchy, SQL template syntax
   - `dashboard-rich-table` — widget datasource reference patterns, data presets
   - `dashboard-chart` — chart datasource usage, drill-down projections
-  - `datasource-architecture` rule — TypeScript implementation details
+  - `dashboard-builder-guide` — style conventions, proven patterns, checklists
 </see_also>
 </rule>

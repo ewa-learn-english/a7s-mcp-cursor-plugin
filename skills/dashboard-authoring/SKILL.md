@@ -44,7 +44,7 @@ Follow this sequence strictly. Never skip steps.
 2. Call `get_column_stats` to understand value distributions before building filters
 3. Call `explore_metric` for semantic metrics — supports multi-dimension segmentation (pass array to `segment_by`) and dimension-based `filters`
 4. Pay attention to `column_types` in responses — use only listed column names
-5. Large results (>30 rows) are truncated. Full data is available via `skipper://query-results/{id}` resource link
+5. Large results (>500 rows) are truncated in the text response. Full data is available via `skipper://query-results/{id}` resource link
 
 ### Phase 3: BUILD
 

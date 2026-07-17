@@ -1,10 +1,26 @@
+---
+description: Style conventions, proven patterns, and checklists for A7S Skipper dashboards — the entry-point authoring guide
+globs: dashboards/**/*.yaml
+alwaysApply: false
+---
+
 # Dashboard Builder Guide
 
 <rule>
 <meta>
   Style conventions, proven patterns, and checklists for building A7S Skipper dashboards.
-  This is the go-to reference for authoring best practices. For schema details, see the specific widget rules.
+  This is the go-to reference for authoring best practices; for schema details, see the specific widget rules.
+  Activate when building or reviewing dashboard YAML end-to-end.
 </meta>
+
+<hard_rules>
+  These never-break rules are canonical (mirrored in the Skipper MCP server instructions — keep wording identical):
+  - NEVER hardcode table names in widget SQL — reference datasources via {{source:key}}.
+  - NEVER hardcode date ranges — use ${filters.*} macros so dashboard filters reach the SQL.
+  - NEVER SUM pre-computed ratios (ROI, CTR, CPC, ARPU) — re-derive them from components.
+  - NEVER guess column names — verify with preview_query ("SELECT * FROM <table> LIMIT 5") or validate_sql first.
+  - Always guard division by zero: NULLIF(denominator, 0).
+</hard_rules>
 
 <layout>
   <grid_system>
