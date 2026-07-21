@@ -55,7 +55,7 @@ alwaysApply: false
       type: dimension                       # Required
       width: { type: fixed, value: 60 }    # Optional. Number or { type, value, min, max }
       pinned: left                          # Optional. left | right
-      truncate: true                        # Optional
+      truncate: true                        # Optional. Legacy shorthand for overflow.strategy: truncate
       hidden: false                         # Optional. Hide column
       auto_hide: true                        # Optional. Auto-hide when 100% null
       mapping: { id: languages }            # Optional. Value mapping ref
@@ -71,6 +71,12 @@ alwaysApply: false
         strategy: truncate                  #   truncate | wrap | expand
         tooltip: { enabled: true, maxWidth: 420 }
     ```
+
+    `truncate` renders plain-text dimension values as a single line, collapses line breaks and
+    repeated whitespace in the cell preview, and applies ellipsis at the rendered column width.
+    When text is clipped or whitespace normalization hides content, click the cell (or press
+    `Enter`/`Space`) to view the full formatted value with its original line breaks. The click
+    preview is independent from the optional hover `tooltip` configuration.
   </column_base_fields>
 
   <column_format>
@@ -740,7 +746,7 @@ alwaysApply: false
     ```yaml
     layout:
       default_preset: comfortable
-      show_reset: false
+      show_reset: false                       # Explicitly hide Reset layout for user overrides
       presets:
         - id: compact
           label: Compact
@@ -757,6 +763,11 @@ alwaysApply: false
         - max_width: 1024
           preset: compact
     ```
+
+    `Reset layout` is shown by default whenever the user changes column widths, visibility,
+    overflow, or the selected preset, including on tables without a `layout` block. It clears only
+    user overrides; authored `hidden`, preset/responsive visibility, and `auto_hide` remain active.
+    Set `layout.show_reset: false` only when the dashboard author intentionally opts out.
   </layout_presets>
 </examples>
 
