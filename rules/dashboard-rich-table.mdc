@@ -446,6 +446,7 @@ alwaysApply: false
       selectable:
         multi: true
         select_all: true
+        key: id                            # Optional explicit persistence key
         columns: [id, name, experiment_id]  # For consumer SQL refs
 
     # Consumer widget — highlight
@@ -463,6 +464,18 @@ alwaysApply: false
         column: country_code
     ```
     `selectable` and `highlight` are mutually exclusive on the same widget.
+
+    Selection persistence across datasource refreshes and page reloads resolves its row key in
+    this order:
+    1. Explicit `selectable.key`.
+    2. Exactly one distinct column used by downstream `${selection.<widget>('column')}` macros.
+    3. No inferred key. The selection clears on refresh; add `key` explicitly when several
+       different consumer columns are intentional.
+
+    Repeated references to the same macro column are deduplicated. Do not infer identity from the
+    declared/displayed column names: a table can legitimately expose several IDs. Both explicit
+    and inferred keys are included in the selected Arrow row payload. `emit_filters` uses its own
+    hidden-filter persistence path.
   </selectable_and_highlight>
 
   <selection_as_global_filter>
