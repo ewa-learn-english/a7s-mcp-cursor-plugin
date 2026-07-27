@@ -312,6 +312,9 @@ alwaysApply: false
         label: Content           # Optional. Display label for collapsed group dropdown
         color: blue              # Optional. Accent color (blue|violet|amber|emerald|rose|cyan|teal|indigo)
         collapse: false          # Optional. true (default) | false | { threshold: N }
+      - id: finance_yoy
+        tabs: [finance-yoy]
+        filters: []              # Required field; intentionally no global filters for this group
     ```
 
     Collapse behavior:
@@ -322,6 +325,8 @@ alwaysApply: false
     Interaction with filter pools:
     - Pool visibility is scoped within the group-filtered set. When a group is active, the "+ Add filter" menu shows only pool filters whose IDs appear in that group's `filters` list.
     - Filters not listed in any group are hidden while any group is active.
+    - `filters: []` is supported and means an intentionally filter-free group: its tabs remain visible, the global filter panel is empty, and filters from another group are not used as fallback.
+    - Omitting `filters` is invalid. An active group with `filters: []` is distinct from classic mode with no active group.
   </filter_groups>
 
   <shared_filters>
