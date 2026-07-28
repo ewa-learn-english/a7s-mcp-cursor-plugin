@@ -15,7 +15,40 @@ Cursor IDE plugin for [A7S Skipper](https://bi.e2w2a.pro) — a BI platform for 
 1. Install the plugin in Cursor (Team Marketplace or local install)
 2. The MCP server appears in Settings → MCP Servers as **a7s-skipper**
 3. On first tool call, Cursor will open the OAuth login flow
-4. After consent, all MCP tools are available
+4. Continue with Google, review the requested scopes, and select **Allow**
+5. Cursor receives the OAuth callback and loads the MCP tools
+
+The OAuth client is public and uses PKCE. The client ID in `.mcp.json` is not a secret; a
+`CLIENT_SECRET` must never be added to the plugin.
+
+## Updating or repairing an installation
+
+If Cursor shows more than one A7S Skipper card, opens **All Dashboards** during MCP login, or
+does not display the bundled rules and skill:
+
+1. Update Cursor and install the latest A7S Skipper plugin version from the canonical EWA Team
+   Marketplace entry.
+2. Remove any older A7S Skipper entry that was installed from a direct Git URL or an obsolete
+   team marketplace import.
+3. Restart Cursor, open Settings → MCP Servers, and reconnect **a7s-skipper**.
+4. Trigger an MCP tool call and complete the browser login and consent flow again.
+
+Do not delete Cursor cache directories manually. If the duplicate remains, ask the Team
+Marketplace administrator to remove the obsolete marketplace registration, then reinstall the
+canonical plugin.
+
+## OAuth troubleshooting
+
+- **All Dashboards opens instead of returning to Cursor:** confirm that the A7S Skipper web
+  deployment with the Cursor OAuth login-continuation fix is live. Then update to plugin 1.0.1 or
+  newer, reconnect **a7s-skipper**, and restart OAuth from the MCP server settings.
+- **Redirect URI is rejected:** update the A7S Skipper server deployment. Supported Cursor
+  callbacks include the desktop custom scheme, the hosted agent callback, and the local
+  `http://localhost:8787/callback` listener.
+- **Consent is denied:** the account needs `catalog:read`; authoring tools additionally require
+  `workspace:write`.
+- **401 after a previous successful login:** reconnect the MCP server so Cursor can refresh or
+  replace its stored OAuth session.
 
 ## MCP Tools
 

@@ -1,3 +1,8 @@
+---
+name: dashboard-authoring
+description: Use when creating, modifying, validating, or exploring A7S Skipper BI dashboards through the bundled MCP server.
+---
+
 # A7S Skipper — Dashboard Authoring Skill
 
 Use this skill when the user wants to create, modify, or explore BI dashboards powered by A7S Skipper. This skill orchestrates MCP tools for data exploration, semantic catalog, and dashboard CRUD.

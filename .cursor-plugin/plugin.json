@@ -1,10 +1,15 @@
 {
   "name": "a7s-skipper",
+  "displayName": "A7S Skipper",
   "description": "BI dashboard authoring for A7S Skipper — semantic metrics catalog, SQL exploration, YAML dashboard builder with OAuth 2.1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "EWA"
   },
+  "publisher": "EWA",
+  "homepage": "https://bi.e2w2a.pro",
+  "license": "LicenseRef-Proprietary",
+  "category": "Data & Analytics",
   "keywords": [
     "analytics",
     "bi",
@@ -14,6 +19,10 @@
     "mcp",
     "dbt"
   ],
-  "logo": "assets/logo.svg",
-  "repository": "https://github.com/ewa-learn-english/a7s-mcp-cursor-plugin"
+  "tags": ["business-intelligence", "dashboard-authoring", "semantic-layer", "oauth"],
+  "logo": "assets/logo.png",
+  "repository": "https://github.com/ewa-learn-english/a7s-mcp-cursor-plugin",
+  "skills": "./skills/",
+  "rules": "./rules/",
+  "mcpServers": "./.mcp.json"
 }

@@ -1,9 +1,18 @@
 {
   "mcpServers": {
     "a7s-skipper": {
+      "type": "http",
       "url": "https://bi.e2w2a.pro/api/mcp",
       "auth": {
-        "CLIENT_ID": "KRxGdvzeGGpUReXnIZBJjwCVLhdzbmnH"
+        "CLIENT_ID": "KRxGdvzeGGpUReXnIZBJjwCVLhdzbmnH",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access",
+          "catalog:read",
+          "workspace:write"
+        ]
       }
     }
   }
