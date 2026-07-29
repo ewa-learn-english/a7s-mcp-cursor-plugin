@@ -74,6 +74,7 @@ Available tools and their purpose:
 - Base source SQL uses **ClickHouse** syntax; projection/view SQL uses **DuckDB** syntax
 - **LAYOUT**: Prefer section-level `layout: horizontal` + `columns: N` for multi-column layouts. Reserve `col_span` only for unequal widths or wide tables (`col_span: 15`)
 - **CATALOG LAYOUT**: Use folder-level `layout: catalog` in `+layout.yaml` for hub/reading-list dashboards with many tabs. Catalog sections reference existing tab file/directory names, `items: "*"` is allowed once for the remainder, and card clicks keep direct tab URLs. Reader mode is separate follow-up work.
+- **LONG DASHBOARDS**: Keep `appearance.table_of_contents: auto` for normal dashboards with three or more titled sections. Use optional `toc_label` (1-64 characters) on sections and titled rich tables/charts when navigation needs shorter copy; never replace the descriptive visible `title`. Doc tabs keep their h2/h3 reader TOC.
 
 ### Phase 4: VALIDATE
 

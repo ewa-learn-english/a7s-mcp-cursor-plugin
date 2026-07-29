@@ -58,6 +58,11 @@ alwaysApply: false
     Reserve `col_span` for: unequal widths, wide tables (`col_span: 15`).
     Reserve `row_span` for: multi-track charts needing extra height (`row_span: 2+`).
   </grid_system>
+
+  <long_dashboard_navigation>
+    For long normal dashboards, keep `appearance.table_of_contents: auto` (shown from three titled sections). Use `always` only when a shorter dashboard still benefits from navigation and `never` only for narrative or deliberately unstructured layouts.
+    Give every navigable section and important rich table/chart a descriptive `title`. Add `toc_label` (1-64 characters) only when that title needs compact navigation copy; never shorten the visible title just to fit the rail. Markdown widgets do not enter the normal dashboard outline, and `mode: doc` keeps its separate h2/h3 reader TOC.
+  </long_dashboard_navigation>
 </layout>
 
 <patterns>

@@ -1,5 +1,5 @@
 ---
-description: Dashboard YAML top-level structure, sections, tabs, and grid layout
+description: Dashboard YAML top-level structure, sections, tabs, table of contents, and grid layout
 globs: dashboards/**/*.yaml
 alwaysApply: false
 ---
@@ -32,6 +32,7 @@ alwaysApply: false
     appearance:                # Optional
       show_title: true         #   Show dashboard title in header
       show_description: true   #   Show description in header
+      table_of_contents: auto  #   auto (default) | always | never
     datasources: {}            # Required. Named datasources (→ dashboard-datasources rule)
     mappings: {}               # Optional. Value mapping dicts (→ dashboard-mappings rule)
     filters: []                # Optional. Dashboard-level filters (→ dashboard-filters rule)
@@ -47,6 +48,7 @@ alwaysApply: false
     sections:
       - id: overview                      # Required. Unique within dashboard
         title: Overview                   # Optional. Shows header with collapse toggle
+        toc_label: Overview               # Optional. Short TOC copy, 1-64 characters
         description: Section description  # Optional
         layout: vertical                  # Optional. vertical (default) | horizontal
         columns: 2                        # Optional. For horizontal layout — equal-width columns
@@ -113,6 +115,32 @@ alwaysApply: false
     ```
   </ai_config>
 </schema>
+
+<table_of_contents>
+  Normal dashboard tabs can expose a Medium-inspired navigation rail/sheet without changing widget data flow.
+
+  - `appearance.table_of_contents: auto` is the default and appears at three or more titled sections.
+  - Put `appearance` in the simple tab file or in a composite tab `_tab.yaml`; tab extraction preserves it across filesystem, MongoDB-backed, and in-memory roots.
+  - Use `always` to force it when at least one eligible item exists, or `never` to hide it.
+  - The outline contains titled sections plus titled `rich_table` and `chart` widgets in DOM order. Markdown widgets are omitted.
+  - Add `toc_label` only when the visible `title` is too long for compact navigation. It must be 1-64 characters and does not change the visible title, Cmd+K result, share metadata, or accessible widget name.
+  - `toc_label` is valid on sections, rich tables, and charts. It is not valid on markdown widgets.
+  - `mode: doc` keeps its own h2/h3 reader TOC; continue authoring meaningful markdown headings there.
+
+  ```yaml
+  appearance:
+    table_of_contents: auto
+  sections:
+    - id: acquisition
+      title: Acquisition performance by channel and market
+      toc_label: Acquisition
+      widgets:
+        - id: revenue-trend
+          type: chart
+          title: Revenue development for the selected period
+          toc_label: Revenue trend
+  ```
+</table_of_contents>
 
 <layout>
   <grid_system>

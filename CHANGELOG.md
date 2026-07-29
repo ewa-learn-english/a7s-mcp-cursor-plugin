@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 — 2026-07-29
+
+- Document long-dashboard table-of-contents modes and `toc_label` authoring.
+- Keep bundled plugin rules aligned with A7S Skipper CLI rule generation and MCP schema guidance.
+
 ## 1.0.1 — 2026-07-28
 
 - Declare the bundled MCP server, dashboard-authoring skill, and dashboard rules explicitly.

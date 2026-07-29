@@ -2,7 +2,7 @@
   "name": "a7s-skipper",
   "displayName": "A7S Skipper",
   "description": "BI dashboard authoring for A7S Skipper — semantic metrics catalog, SQL exploration, YAML dashboard builder with OAuth 2.1",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": {
     "name": "EWA"
   },
